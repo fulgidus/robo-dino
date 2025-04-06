@@ -1,0 +1,15 @@
+{
+  "name": "rust-dino",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "rust_dino_bg.wasm",
+    "rust_dino.js",
+    "rust_dino.d.ts"
+  ],
+  "main": "rust_dino.js",
+  "types": "rust_dino.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
