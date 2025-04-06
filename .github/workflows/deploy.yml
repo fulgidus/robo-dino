@@ -2,14 +2,18 @@ name: Deploy Robo Dino to GitHub Pages
 
 on:
   push:
-    branches: [main]  # cambia se usi "master" o altro
+    branches: [main]
 
 permissions:
-  contents: write  # serve per pushare su gh-pages
+  contents: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout repo
@@ -47,3 +51,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: frontend/dist
+          enable_jekyll: false   # evita che GitHub Pages nasconda i file che iniziano con _
