@@ -11,8 +11,5 @@
     "devDependencies": {
         "typescript": "5.8.3",
         "vite": "^6.2.5"
-    },
-    "dependencies": {
-        "rust-dino": "link:../rust-dino/pkg"
     }
 }
