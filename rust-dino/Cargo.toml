@@ -9,4 +9,5 @@ crate-type = [
 ] # necessaria per generare libreria di tipo dynamic per WASM
 
 [dependencies]
-wasm-bindgen = "0.2"
+wasm-bindgen = "0.2.100"
+rand = { version = "0.8", default-features = false, features = ["small_rng"] }

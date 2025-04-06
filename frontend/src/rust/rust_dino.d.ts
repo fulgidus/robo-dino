@@ -1,13 +1,5 @@
 /* tslint:disable */
 /* eslint-disable */
-export class Dino {
-  private constructor();
-  free(): void;
-  x: number;
-  y: number;
-  velocity_y: number;
-  on_ground: boolean;
-}
 export class Obstacle {
   private constructor();
   free(): void;
@@ -18,12 +10,18 @@ export class World {
   free(): void;
   constructor();
   update(dt: number): void;
-  jump(): void;
-  get_dino_x(): number;
-  get_dino_y(): number;
-  get_score(): number;
+  get_best_dino_x(): number;
+  get_best_dino_y(): number;
+  get_best_score(): number;
+  get_generation(): number;
   get_obstacle_count(): number;
   get_obstacle_x(index: number): number;
+  get_fitness_history(): Uint32Array;
+  get_score(): number;
+  get_best_weights(): Float32Array;
+  get_best_bias(): number;
+  set_best_weights(weights: Float32Array): void;
+  set_best_bias(bias: number): void;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -31,29 +29,28 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_obstacle_free: (a: number, b: number) => void;
-  readonly __wbg_dino_free: (a: number, b: number) => void;
-  readonly __wbg_get_dino_x: (a: number) => number;
-  readonly __wbg_set_dino_x: (a: number, b: number) => void;
-  readonly __wbg_get_dino_y: (a: number) => number;
-  readonly __wbg_set_dino_y: (a: number, b: number) => void;
-  readonly __wbg_get_dino_velocity_y: (a: number) => number;
-  readonly __wbg_set_dino_velocity_y: (a: number, b: number) => void;
-  readonly __wbg_get_dino_on_ground: (a: number) => number;
-  readonly __wbg_set_dino_on_ground: (a: number, b: number) => void;
+  readonly __wbg_get_obstacle_x: (a: number) => number;
+  readonly __wbg_set_obstacle_x: (a: number, b: number) => void;
+  readonly __wbg_get_obstacle_base_speed: (a: number) => number;
+  readonly __wbg_set_obstacle_base_speed: (a: number, b: number) => void;
   readonly __wbg_world_free: (a: number, b: number) => void;
   readonly world_new: () => number;
   readonly world_update: (a: number, b: number) => void;
-  readonly world_jump: (a: number) => void;
-  readonly world_get_dino_x: (a: number) => number;
-  readonly world_get_dino_y: (a: number) => number;
-  readonly world_get_score: (a: number) => number;
+  readonly world_get_best_dino_x: (a: number) => number;
+  readonly world_get_best_dino_y: (a: number) => number;
+  readonly world_get_best_score: (a: number) => number;
+  readonly world_get_generation: (a: number) => number;
   readonly world_get_obstacle_count: (a: number) => number;
   readonly world_get_obstacle_x: (a: number, b: number) => number;
-  readonly __wbg_get_obstacle_x: (a: number) => number;
-  readonly __wbg_get_obstacle_base_speed: (a: number) => number;
-  readonly __wbg_set_obstacle_x: (a: number, b: number) => void;
-  readonly __wbg_set_obstacle_base_speed: (a: number, b: number) => void;
+  readonly world_get_fitness_history: (a: number) => [number, number];
+  readonly world_get_score: (a: number) => number;
+  readonly world_get_best_weights: (a: number) => [number, number];
+  readonly world_get_best_bias: (a: number) => number;
+  readonly world_set_best_weights: (a: number, b: number, c: number) => void;
+  readonly world_set_best_bias: (a: number, b: number) => void;
   readonly __wbindgen_export_0: WebAssembly.Table;
+  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+  readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_start: () => void;
 }
 

@@ -18,75 +18,41 @@ function getStringFromWasm0(ptr, len) {
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
 
-const DinoFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_dino_free(ptr >>> 0, 1));
+let cachedUint32ArrayMemory0 = null;
 
-export class Dino {
+function getUint32ArrayMemory0() {
+    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
+        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
+    }
+    return cachedUint32ArrayMemory0;
+}
 
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        DinoFinalization.unregister(this);
-        return ptr;
-    }
+function getArrayU32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
 
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_dino_free(ptr, 0);
+let cachedFloat32ArrayMemory0 = null;
+
+function getFloat32ArrayMemory0() {
+    if (cachedFloat32ArrayMemory0 === null || cachedFloat32ArrayMemory0.byteLength === 0) {
+        cachedFloat32ArrayMemory0 = new Float32Array(wasm.memory.buffer);
     }
-    /**
-     * @returns {number}
-     */
-    get x() {
-        const ret = wasm.__wbg_get_dino_x(this.__wbg_ptr);
-        return ret;
-    }
-    /**
-     * @param {number} arg0
-     */
-    set x(arg0) {
-        wasm.__wbg_set_dino_x(this.__wbg_ptr, arg0);
-    }
-    /**
-     * @returns {number}
-     */
-    get y() {
-        const ret = wasm.__wbg_get_dino_y(this.__wbg_ptr);
-        return ret;
-    }
-    /**
-     * @param {number} arg0
-     */
-    set y(arg0) {
-        wasm.__wbg_set_dino_y(this.__wbg_ptr, arg0);
-    }
-    /**
-     * @returns {number}
-     */
-    get velocity_y() {
-        const ret = wasm.__wbg_get_dino_velocity_y(this.__wbg_ptr);
-        return ret;
-    }
-    /**
-     * @param {number} arg0
-     */
-    set velocity_y(arg0) {
-        wasm.__wbg_set_dino_velocity_y(this.__wbg_ptr, arg0);
-    }
-    /**
-     * @returns {boolean}
-     */
-    get on_ground() {
-        const ret = wasm.__wbg_get_dino_on_ground(this.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
-     * @param {boolean} arg0
-     */
-    set on_ground(arg0) {
-        wasm.__wbg_set_dino_on_ground(this.__wbg_ptr, arg0);
-    }
+    return cachedFloat32ArrayMemory0;
+}
+
+function getArrayF32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getFloat32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
+let WASM_VECTOR_LEN = 0;
+
+function passArrayF32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4, 4) >>> 0;
+    getFloat32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 const ObstacleFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -110,27 +76,27 @@ export class Obstacle {
      * @returns {number}
      */
     get x() {
-        const ret = wasm.__wbg_get_dino_x(this.__wbg_ptr);
+        const ret = wasm.__wbg_get_obstacle_x(this.__wbg_ptr);
         return ret;
     }
     /**
      * @param {number} arg0
      */
     set x(arg0) {
-        wasm.__wbg_set_dino_x(this.__wbg_ptr, arg0);
+        wasm.__wbg_set_obstacle_x(this.__wbg_ptr, arg0);
     }
     /**
      * @returns {number}
      */
     get base_speed() {
-        const ret = wasm.__wbg_get_dino_y(this.__wbg_ptr);
+        const ret = wasm.__wbg_get_obstacle_base_speed(this.__wbg_ptr);
         return ret;
     }
     /**
      * @param {number} arg0
      */
     set base_speed(arg0) {
-        wasm.__wbg_set_dino_y(this.__wbg_ptr, arg0);
+        wasm.__wbg_set_obstacle_base_speed(this.__wbg_ptr, arg0);
     }
 }
 
@@ -163,28 +129,32 @@ export class World {
     update(dt) {
         wasm.world_update(this.__wbg_ptr, dt);
     }
-    jump() {
-        wasm.world_jump(this.__wbg_ptr);
-    }
     /**
      * @returns {number}
      */
-    get_dino_x() {
-        const ret = wasm.world_get_dino_x(this.__wbg_ptr);
+    get_best_dino_x() {
+        const ret = wasm.world_get_best_dino_x(this.__wbg_ptr);
         return ret;
     }
     /**
      * @returns {number}
      */
-    get_dino_y() {
-        const ret = wasm.world_get_dino_y(this.__wbg_ptr);
+    get_best_dino_y() {
+        const ret = wasm.world_get_best_dino_y(this.__wbg_ptr);
         return ret;
     }
     /**
      * @returns {number}
      */
-    get_score() {
-        const ret = wasm.world_get_score(this.__wbg_ptr);
+    get_best_score() {
+        const ret = wasm.world_get_best_score(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get_generation() {
+        const ret = wasm.world_get_generation(this.__wbg_ptr);
         return ret >>> 0;
     }
     /**
@@ -201,6 +171,52 @@ export class World {
     get_obstacle_x(index) {
         const ret = wasm.world_get_obstacle_x(this.__wbg_ptr, index);
         return ret;
+    }
+    /**
+     * @returns {Uint32Array}
+     */
+    get_fitness_history() {
+        const ret = wasm.world_get_fitness_history(this.__wbg_ptr);
+        var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get_score() {
+        const ret = wasm.world_get_score(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {Float32Array}
+     */
+    get_best_weights() {
+        const ret = wasm.world_get_best_weights(this.__wbg_ptr);
+        var v1 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get_best_bias() {
+        const ret = wasm.world_get_best_bias(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {Float32Array} weights
+     */
+    set_best_weights(weights) {
+        const ptr0 = passArrayF32ToWasm0(weights, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.world_set_best_weights(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {number} bias
+     */
+    set_best_bias(bias) {
+        wasm.world_set_best_bias(this.__wbg_ptr, bias);
     }
 }
 
@@ -262,6 +278,8 @@ function __wbg_init_memory(imports, memory) {
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     __wbg_init.__wbindgen_wasm_module = module;
+    cachedFloat32ArrayMemory0 = null;
+    cachedUint32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
 
 
