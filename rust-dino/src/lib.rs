@@ -1,14 +1,15 @@
 use wasm_bindgen::prelude::*;
 use rand::{ Rng, SeedableRng };
 use rand::rngs::SmallRng;
+use web_sys::console;
 
 const GROUND_Y: f32 = 0.0;
 const DINO_WIDTH: f32 = 20.0;
 const DINO_HEIGHT: f32 = 20.0;
 const OBSTACLE_WIDTH: f32 = 20.0;
 const OBSTACLE_HEIGHT: f32 = 30.0;
-const GRAVITY: f32 = -10.0;
-const MAX_JUMP_FORCE: f32 = 30.0; // aumentato da 22.0 a 30.0
+const GRAVITY: f32 = -45.0;
+const MAX_JUMP_FORCE: f32 = 65.0;
 const POPULATION_SIZE: usize = 1000;
 
 fn sigmoid(x: f32) -> f32 {
@@ -36,7 +37,6 @@ impl Dino {
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y, velocity_y: 0.0, on_ground: true, alive: true, score: 0, time_alive: 0 }
     }
-
     pub fn update(&mut self, dt: f32) {
         self.time_alive += 1;
         if !self.on_ground {
@@ -61,49 +61,91 @@ impl Dino {
         self.time_alive = 0;
     }
 }
-
 #[derive(Clone)]
 pub struct NeuralNet {
-    pub weights: Vec<f32>,
-    pub bias: f32,
+    pub input_weights: Vec<Vec<f32>>, // [hidden][input]
+    pub hidden_biases: Vec<f32>,
+    pub output_weights: Vec<f32>, // [hidden]
+    pub output_bias: f32,
     pub fitness: u32,
 }
 
 impl NeuralNet {
     pub fn new(num_inputs: usize, seed: u64) -> Self {
         let mut rng = SmallRng::seed_from_u64(seed);
-        let weights = vec![
-            -12.0 + rng.gen_range(-1.0..1.0),
-            rng.gen_range(-0.5..0.5),
-            rng.gen_range(-0.5..0.5)
-        ];
-        let bias = 6.0 + rng.gen_range(-1.0..1.0);
+        let hidden_size = 9;
+
+        let input_weights = (0..hidden_size)
+            .map(|_| (0..num_inputs).map(|_| rng.gen_range(-1.0..1.0)).collect())
+            .collect();
+
+        let hidden_biases = (0..hidden_size).map(|_| rng.gen_range(-1.0..1.0)).collect();
+        let output_weights = (0..hidden_size).map(|_| rng.gen_range(-1.0..1.0)).collect();
+        let output_bias = rng.gen_range(-1.0..1.0);
 
         Self {
-            weights,
-            bias,
+            input_weights,
+            hidden_biases,
+            output_weights,
+            output_bias,
             fitness: 0,
         }
     }
 
     pub fn predict(&self, inputs: &[f32]) -> f32 {
-        let mut sum = self.bias;
-        for (i, w) in self.weights.iter().enumerate() {
-            sum += w * inputs[i];
-        }
-        sigmoid(sum)
+        let hidden_activations: Vec<f32> = self.input_weights
+            .iter()
+            .zip(&self.hidden_biases)
+            .map(|(weights, bias)| {
+                let sum: f32 = weights
+                    .iter()
+                    .zip(inputs)
+                    .map(|(w, i)| w * i)
+                    .sum();
+                sigmoid(sum + bias)
+            })
+            .collect();
+
+        let output: f32 =
+            self.output_weights
+                .iter()
+                .zip(&hidden_activations)
+                .map(|(w, h)| w * h)
+                .sum::<f32>() + self.output_bias;
+
+        sigmoid(output)
     }
 
-    pub fn mutate(&self, mutation_rate: f32, seed: u64) -> Self {
+    pub fn mutate(&self, rate: f32, seed: u64) -> Self {
         let mut rng = SmallRng::seed_from_u64(seed);
-        let weights = self.weights
+
+        let input_weights = self.input_weights
             .iter()
-            .map(|w| w + rng.gen_range(-mutation_rate..mutation_rate))
+            .map(|layer| {
+                layer
+                    .iter()
+                    .map(|w| w + rng.gen_range(-rate..rate))
+                    .collect()
+            })
             .collect();
-        let bias = self.bias + rng.gen_range(-mutation_rate..mutation_rate);
+
+        let hidden_biases = self.hidden_biases
+            .iter()
+            .map(|b| b + rng.gen_range(-rate..rate))
+            .collect();
+
+        let output_weights = self.output_weights
+            .iter()
+            .map(|w| w + rng.gen_range(-rate..rate))
+            .collect();
+
+        let output_bias = self.output_bias + rng.gen_range(-rate..rate);
+
         Self {
-            weights,
-            bias,
+            input_weights,
+            hidden_biases,
+            output_weights,
+            output_bias,
             fitness: 0,
         }
     }
@@ -133,8 +175,8 @@ impl World {
             brains,
             dinos,
             obstacles: vec![
-                Obstacle { x: 500.0 + rng.gen_range(-100.0..100.0), base_speed: 50.0 },
-                Obstacle { x: 1000.0 + rng.gen_range(-100.0..100.0), base_speed: 50.0 }
+                Obstacle { x: 300.0 + rng.random_range(-100.0..100.0), base_speed: 50.0 },
+                Obstacle { x: 600.0 + rng.random_range(-100.0..100.0), base_speed: 50.0 }
             ],
             best_index: 0,
             generation: 0,
@@ -175,18 +217,31 @@ impl World {
             }
 
             for obs in &self.obstacles {
+                /* web_sys::console::log_1(
+                    &format!("🦀: 🔍 Checking collision dino {} vs obs at x = {}", i, obs.x).into()
+                ); */
                 if Self::is_collision_with(dino.x, dino.y, obs.x, GROUND_Y) {
                     dino.alive = false;
+                    web_sys::console::log_1(&format!("🦀: Dino {} morto", i).into());
                     self.brains[i].fitness = dino.score * 10 + dino.time_alive;
                     break;
                 }
             }
-        }
 
+            web_sys::console::log_1(
+                &format!("🦀: Weights for Dino {}: {:?}", i, self.brains[i].input_weights).into()
+            );
+        }
+        let alive_count = self.dinos
+            .iter()
+            .filter(|d| d.alive)
+            .count();
+        /* web_sys::console::log_1(&format!("🦀: {} dinos still alive", alive_count).into()); */
         for obs in &mut self.obstacles {
             obs.x -= obs.base_speed * speed_multiplier * dt;
             if obs.x + OBSTACLE_WIDTH < 0.0 {
-                obs.x += 1000.0;
+                let mut rng = SmallRng::seed_from_u64((self.generation as u64) + (obs.x as u64));
+                obs.x += 600.0 + rng.random_range(-200.0..200.0);
                 for dino in self.dinos.iter_mut() {
                     if dino.alive {
                         dino.score += 1;
@@ -208,22 +263,32 @@ impl World {
     }
 
     fn evolve(&mut self) {
+        web_sys::console::log_1(&"🦀: 🌱 Evolving!".into());
         let best = self.brains[self.best_index].clone();
-
         self.fitness_history.push(best.fitness);
         if self.fitness_history.len() > 100 {
             self.fitness_history.remove(0);
         }
 
-        let mut rng = SmallRng::seed_from_u64(self.generation as u64);
+        let seed_base = (self.generation as u64) * 1000;
+        let mut new_brains = vec![best.clone()];
 
-        self.brains = (0..POPULATION_SIZE)
-            .map(|i| best.mutate(0.3, (self.generation as u64) + (i as u64)))
-            .collect();
+        // Mutazioni pesanti del best
+        for i in 1..POPULATION_SIZE / 2 {
+            new_brains.push(best.mutate(1.5, seed_base + (i as u64)));
+        }
+
+        // Individui nuovi random
+        for i in POPULATION_SIZE / 2..POPULATION_SIZE {
+            new_brains.push(NeuralNet::new(3, seed_base + (i as u64)));
+        }
+
+        self.brains = new_brains;
         self.dinos = (0..POPULATION_SIZE).map(|_| Dino::new(50.0, GROUND_Y)).collect();
+        let mut rng = SmallRng::seed_from_u64(self.generation as u64);
         self.obstacles = vec![
-            Obstacle { x: 300.0 + rng.gen_range(-100.0..100.0), base_speed: 50.0 },
-            Obstacle { x: 600.0 + rng.gen_range(-100.0..100.0), base_speed: 50.0 }
+            Obstacle { x: 600.0 + rng.random_range(-100.0..100.0), base_speed: 50.0 },
+            Obstacle { x: 1200.0 + rng.random_range(-100.0..100.0), base_speed: 50.0 }
         ];
         self.generation += 1;
     }
@@ -260,25 +325,55 @@ impl World {
         self.dinos[0].score
     }
 
-    pub fn get_best_weights(&self) -> Vec<f32> {
-        self.brains[self.best_index].weights.clone()
+    pub fn get_best_input_weights(&self) -> Vec<f32> {
+        self.brains[self.best_index].input_weights.concat()
+    }
+
+    pub fn get_best_output_weights(&self) -> Vec<f32> {
+        self.brains[self.best_index].output_weights.clone()
     }
 
     pub fn get_best_bias(&self) -> f32 {
-        self.brains[self.best_index].bias
+        self.brains[self.best_index].output_bias
     }
 
     pub fn set_best_weights(&mut self, weights: Vec<f32>) {
-        self.brains[0].weights = weights;
+        self.brains[0].output_weights = weights;
     }
 
     pub fn set_best_bias(&mut self, bias: f32) {
-        self.brains[0].bias = bias;
+        self.brains[0].output_bias = bias;
     }
 
     fn is_collision_with(dino_x: f32, dino_y: f32, obs_x: f32, obs_y: f32) -> bool {
-        let collision_x = dino_x < obs_x + OBSTACLE_WIDTH && dino_x + DINO_WIDTH > obs_x;
-        let collision_y = dino_y < obs_y + OBSTACLE_HEIGHT && dino_y + DINO_HEIGHT > obs_y;
-        collision_x && collision_y
+        let dx = dino_x < obs_x + OBSTACLE_WIDTH && dino_x + DINO_WIDTH > obs_x;
+        let dy = dino_y < obs_y + OBSTACLE_HEIGHT && dino_y + DINO_HEIGHT > obs_y;
+        let result = dx && dy;
+        /* web_sys::console::log_1(
+            &format!("🦀: 🔬 collision test: dx={} dy={} => {}", dx, dy, result).into()
+        ); */
+        result
+    }
+
+    #[wasm_bindgen]
+    pub fn count_alive(&self) -> usize {
+        self.dinos
+            .iter()
+            .filter(|d| d.alive)
+            .count()
+    }
+
+    #[wasm_bindgen]
+    pub fn get_average_score(&self) -> f32 {
+        let total: u32 = self.dinos
+            .iter()
+            .map(|d| d.score)
+            .sum();
+        (total as f32) / (self.dinos.len() as f32)
+    }
+
+    #[wasm_bindgen]
+    pub fn is_alive(&self, index: usize) -> bool {
+        self.dinos.get(index).map_or(false, |d| d.alive)
     }
 }

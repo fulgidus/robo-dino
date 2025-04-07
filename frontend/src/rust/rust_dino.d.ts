@@ -18,10 +18,14 @@ export class World {
   get_obstacle_x(index: number): number;
   get_fitness_history(): Uint32Array;
   get_score(): number;
-  get_best_weights(): Float32Array;
+  get_best_input_weights(): Float32Array;
+  get_best_output_weights(): Float32Array;
   get_best_bias(): number;
   set_best_weights(weights: Float32Array): void;
   set_best_bias(bias: number): void;
+  count_alive(): number;
+  get_average_score(): number;
+  is_alive(index: number): boolean;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -44,10 +48,14 @@ export interface InitOutput {
   readonly world_get_obstacle_x: (a: number, b: number) => number;
   readonly world_get_fitness_history: (a: number) => [number, number];
   readonly world_get_score: (a: number) => number;
-  readonly world_get_best_weights: (a: number) => [number, number];
+  readonly world_get_best_input_weights: (a: number) => [number, number];
+  readonly world_get_best_output_weights: (a: number) => [number, number];
   readonly world_get_best_bias: (a: number) => number;
   readonly world_set_best_weights: (a: number, b: number, c: number) => void;
   readonly world_set_best_bias: (a: number, b: number) => void;
+  readonly world_count_alive: (a: number) => number;
+  readonly world_get_average_score: (a: number) => number;
+  readonly world_is_alive: (a: number, b: number) => number;
   readonly __wbindgen_export_0: WebAssembly.Table;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
