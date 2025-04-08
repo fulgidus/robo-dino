@@ -69,7 +69,7 @@ function drawConnection(x1: number, y1: number, x2: number, y2: number, weight: 
 function drawNeuralNet() {
     nnCtx.clearRect(0, 0, nnCanvas.width, nnCanvas.height);
 
-    const inputLabels = ['Dist.', 'Vel.Y', 'Score'];
+    const inputLabels = ['Dist.', 'Vel.', 'Score'];
     const weights = world.get_best_input_weights(); // flat [hidden][input]
     const outputWeights = world.get_best_output_weights();
     const outputBias = world.get_best_bias();
@@ -100,7 +100,7 @@ function drawNeuralNet() {
     // 🔧 Posizionamento neuroni
     function layerPosition(index: number, columnX: number, singleFile = false): [number, number] {
         const col = singleFile ? 1 : index % 2;
-        const row = singleFile ? index : Math.floor(index / 2);
+        const row = singleFile ? index + 0.5 : Math.floor(index / 2);
         const spacingX = 40;
         const spacingY = 60;
         return [columnX + col * spacingX, 50 + row * spacingY];
@@ -114,7 +114,7 @@ function drawNeuralNet() {
 
     // 🔷 Hidden neuron positions
     for (let j = 0; j < hiddenSize; j++) {
-        const [x, y] = layerPosition(j, 300);
+        const [x, y] = layerPosition(j, 300, true);
         hiddenPos.push({ x, y });
     }
 

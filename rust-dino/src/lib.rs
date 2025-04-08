@@ -9,7 +9,7 @@ const DINO_HEIGHT: f32 = 20.0;
 const OBSTACLE_WIDTH: f32 = 20.0;
 const OBSTACLE_HEIGHT: f32 = 30.0;
 const GRAVITY: f32 = -90.0;
-const MAX_JUMP_FORCE: f32 = 100.0;
+const MAX_JUMP_FORCE: f32 = 85.0;
 const POPULATION_SIZE: usize = 5000;
 
 fn sigmoid(x: f32) -> f32 {
@@ -81,7 +81,7 @@ pub struct NeuralNet {
 impl NeuralNet {
     pub fn new(num_inputs: usize, seed: u64) -> Self {
         let mut rng = SmallRng::seed_from_u64(seed);
-        let hidden_size = 9;
+        let hidden_size = 5;
 
         let input_weights = (0..hidden_size)
             .map(|_| (0..num_inputs).map(|_| rng.gen_range(-1.0..1.0)).collect())
@@ -200,7 +200,7 @@ impl World {
 
     pub fn update(&mut self, dt: f32) {
         let best_score = self.dinos[self.best_index].score as f32;
-        let speed_multiplier = 1.0 + best_score / 20.0;
+        let speed_multiplier = 1.0 + best_score / 10.0;
 
         for (i, dino) in self.dinos.iter_mut().enumerate() {
             if !dino.alive {
