@@ -9,8 +9,8 @@ const DINO_HEIGHT: f32 = 20.0;
 const OBSTACLE_WIDTH: f32 = 20.0;
 const OBSTACLE_HEIGHT: f32 = 30.0;
 const GRAVITY: f32 = -45.0;
-const MAX_JUMP_FORCE: f32 = 65.0;
-const POPULATION_SIZE: usize = 1000;
+const MAX_JUMP_FORCE: f32 = 70.0;
+const POPULATION_SIZE: usize = 5000;
 
 fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
@@ -51,7 +51,7 @@ impl Dino {
             self.velocity_y += GRAVITY * dt;
             self.y += self.velocity_y * dt;
 
-            if self.y <= GROUND_Y {
+            if self.y < GROUND_Y {
                 self.y = GROUND_Y;
                 self.velocity_y = 0.0;
                 self.on_ground = true;

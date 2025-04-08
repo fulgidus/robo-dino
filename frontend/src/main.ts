@@ -20,10 +20,10 @@ function weightToColor(weight: number): string {
 
 function drawWeightHeatmap() {
     const weights = world.get_best_input_weights(); // supponendo restituisca flat array
-    const cols = 3; // numero input
-    const rows = weights.length / cols;
-    const cellW = weightsCanvas.width / cols;
-    const cellH = weightsCanvas.height / rows;
+    const rows = 3; // numero input
+    const cols = weights.length / rows;
+    const cellH = weightsCanvas.width / cols;
+    const cellW = weightsCanvas.height / rows;
 
     weightsCtx.clearRect(0, 0, weightsCanvas.width, weightsCanvas.height);
 
