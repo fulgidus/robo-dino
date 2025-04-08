@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      rust-dino:
-        specifier: link:../rust-dino/pkg
-        version: link:../rust-dino/pkg
     devDependencies:
       typescript:
         specifier: 5.8.3

@@ -182,10 +182,11 @@ export class World {
         return v1;
     }
     /**
+     * @param {number} index
      * @returns {number}
      */
-    get_score() {
-        const ret = wasm.world_get_score(this.__wbg_ptr);
+    get_score_of(index) {
+        const ret = wasm.world_get_score_of(this.__wbg_ptr, index);
         return ret >>> 0;
     }
     /**
@@ -248,6 +249,29 @@ export class World {
     is_alive(index) {
         const ret = wasm.world_is_alive(this.__wbg_ptr, index);
         return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get_population_size() {
+        const ret = wasm.world_get_population_size(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @param {number} index
+     * @returns {number}
+     */
+    get_dino_x(index) {
+        const ret = wasm.world_get_dino_x(this.__wbg_ptr, index);
+        return ret;
+    }
+    /**
+     * @param {number} index
+     * @returns {number}
+     */
+    get_dino_y(index) {
+        const ret = wasm.world_get_dino_y(this.__wbg_ptr, index);
+        return ret;
     }
 }
 

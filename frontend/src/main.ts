@@ -44,12 +44,31 @@ function draw() {
     ctx.fillStyle = 'brown';
     ctx.fillRect(0, height - 20, width, 20);
 
-    // Main dino (best)
-    const dx = world.get_best_dino_x();
-    const dy = world.get_best_dino_y();
-    ctx.fillStyle = 'green';
-    ctx.fillRect(dx, height - 20 - dy - 20, 20, 20);
+    // dino (all)
+    const count = world.get_population_size?.() ?? 1;
+    const size = 20;
+    const border = 2;
 
+    for (let i = 0; i < count; i++) {
+        const alive = world.is_alive(i);
+        const dx = world.get_dino_x(i);
+        const dy = world.get_dino_y(i);
+        const size = 20;
+        const screenY = height - 20 - dy - size;
+
+        // Corpo
+        ctx.fillStyle = alive ? 'green' : 'transparent';
+        ctx.fillRect(dx, screenY, size, size);
+
+        // Bordo visibile solo se vivo
+        if (alive) {
+            ctx.save(); // salva stato
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'white';
+            ctx.strokeRect(dx, screenY, size, size);
+            ctx.restore(); // ripristina
+        }
+    }
     // Obstacles
     for (let i = 0; i < world.get_obstacle_count(); i++) {
         const ox = world.get_obstacle_x(i);
@@ -58,14 +77,17 @@ function draw() {
     }
 
     // Info
-    const score = world.get_best_score();
-    const avg = world.get_average_score().toFixed(2);
+    let bestScore = 0;
+    for (let i = 0; i < count; i++) {
+        if (world.is_alive(i)) {
+            bestScore = Math.max(bestScore, world.get_score_of(i));
+        }
+    } const avg = world.get_average_score().toFixed(2);
     const alive = world.count_alive();
     ctx.fillStyle = 'black';
     ctx.font = '14px monospace';
-    ctx.fillText(`Score: ${score}`, 10, 20);
-    ctx.fillText(`Alive: ${alive}`, 10, 40);
-    ctx.fillText(`Avg score: ${avg}`, 10, 60);
+    ctx.fillText(`Score: ${bestScore}`, 10, 20);
+    ctx.fillText(`Alive: ${alive}`, 150, 20);
 }
 
 function drawFitnessGraph(history: number[]) {
