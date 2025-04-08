@@ -46,8 +46,6 @@ function draw() {
 
     // dino (all)
     const count = world.get_population_size?.() ?? 1;
-    const size = 20;
-    const border = 2;
 
     for (let i = 0; i < count; i++) {
         const alive = world.is_alive(i);
@@ -82,7 +80,7 @@ function draw() {
         if (world.is_alive(i)) {
             bestScore = Math.max(bestScore, world.get_score_of(i));
         }
-    } const avg = world.get_average_score().toFixed(2);
+    }
     const alive = world.count_alive();
     ctx.fillStyle = 'black';
     ctx.font = '14px monospace';
