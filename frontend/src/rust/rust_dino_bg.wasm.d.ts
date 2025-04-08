@@ -11,6 +11,7 @@ export const world_new: () => number;
 export const world_update: (a: number, b: number) => void;
 export const world_get_best_dino_x: (a: number) => number;
 export const world_get_best_dino_y: (a: number) => number;
+export const world_get_best_dino_velocity: (a: number) => number;
 export const world_get_best_score: (a: number) => number;
 export const world_get_generation: (a: number) => number;
 export const world_get_obstacle_count: (a: number) => number;

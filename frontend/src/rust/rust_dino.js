@@ -146,6 +146,13 @@ export class World {
     /**
      * @returns {number}
      */
+    get_best_dino_velocity() {
+        const ret = wasm.world_get_best_dino_velocity(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
     get_best_score() {
         const ret = wasm.world_get_best_score(this.__wbg_ptr);
         return ret >>> 0;

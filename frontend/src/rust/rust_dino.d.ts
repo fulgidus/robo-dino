@@ -12,6 +12,7 @@ export class World {
   update(dt: number): void;
   get_best_dino_x(): number;
   get_best_dino_y(): number;
+  get_best_dino_velocity(): number;
   get_best_score(): number;
   get_generation(): number;
   get_obstacle_count(): number;
@@ -45,6 +46,7 @@ export interface InitOutput {
   readonly world_update: (a: number, b: number) => void;
   readonly world_get_best_dino_x: (a: number) => number;
   readonly world_get_best_dino_y: (a: number) => number;
+  readonly world_get_best_dino_velocity: (a: number) => number;
   readonly world_get_best_score: (a: number) => number;
   readonly world_get_generation: (a: number) => number;
   readonly world_get_obstacle_count: (a: number) => number;

@@ -1,5 +1,7 @@
 import init, { World } from './rust/rust_dino.js';
-
+function sigmoid(x: number): number {
+    return 1 / (1 + Math.exp(-x));
+}
 let world: World;
 const canvas = document.getElementById('main') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -55,7 +57,7 @@ function drawConnection(x1: number, y1: number, x2: number, y2: number, weight: 
     const intensity = Math.floor(Math.abs(normalized) * 255);
     const color = normalized >= 0
         ? `rgb(${intensity},0,0)`  // red for positive
-        : `rgb(0,0,${intensity})`; // blue for negative
+        : `rgb(${intensity / 2},${intensity / 2},${intensity})`; // blue for negative
     nnCtx.strokeStyle = color;
     nnCtx.lineWidth = 1 + Math.abs(normalized) * 2;
     nnCtx.beginPath();
@@ -68,8 +70,7 @@ function drawNeuralNet() {
     nnCtx.clearRect(0, 0, nnCanvas.width, nnCanvas.height);
 
     const inputLabels = ['Dist.', 'Vel.Y', 'Score'];
-    const input = [0, 0, 0]; // placeholder
-    const weights = world.get_best_input_weights();
+    const weights = world.get_best_input_weights(); // flat [hidden][input]
     const outputWeights = world.get_best_output_weights();
     const outputBias = world.get_best_bias();
 
@@ -80,31 +81,48 @@ function drawNeuralNet() {
     const inputPos: { x: number; y: number }[] = [];
     const hiddenPos: { x: number; y: number }[] = [];
 
-    function layerPosition(index: number, columnX: number, singleFile: boolean = false): [number, number] {
+    // 🔢 Calcola input reali del miglior dino
+    const bestX = world.get_best_dino_x();
+    const bestVY = world.get_best_dino_velocity?.() ?? 0;
+    let minDist = Infinity;
+
+    for (let i = 0; i < world.get_obstacle_count(); i++) {
+        const ox = world.get_obstacle_x(i);
+        const dx = ox - bestX;
+        if (dx > 0 && dx < minDist) minDist = dx;
+    }
+
+    const normDist = Math.max(0, Math.min(1, (150 - minDist) / 150));
+    const normVY = bestVY / 10;
+    const normScore = world.get_best_score() / 100;
+    const input = [normDist, normVY, normScore];
+
+    // 🔧 Posizionamento neuroni
+    function layerPosition(index: number, columnX: number, singleFile = false): [number, number] {
         const col = singleFile ? 1 : index % 2;
         const row = singleFile ? index : Math.floor(index / 2);
         const spacingX = 40;
         const spacingY = 60;
-        const x = columnX + col * spacingX;
-        const y = 50 + row * spacingY;
-        return [x, y];
+        return [columnX + col * spacingX, 50 + row * spacingY];
     }
 
-    // Precompute positions
+    // ⬅️ Input neuron positions
     for (let i = 0; i < inputSize; i++) {
         const [x, y] = layerPosition(i, 50, true);
         inputPos.push({ x, y });
     }
 
+    // 🔷 Hidden neuron positions
     for (let j = 0; j < hiddenSize; j++) {
         const [x, y] = layerPosition(j, 300);
         hiddenPos.push({ x, y });
     }
 
+    // 🔴 Output neuron position
     const ox = 510;
     const oy = 120;
 
-    // Draw connections: input → hidden
+    // 🔌 Connessioni input → hidden
     for (let j = 0; j < hiddenSize; j++) {
         for (let i = 0; i < inputSize; i++) {
             const from = inputPos[i];
@@ -114,24 +132,39 @@ function drawNeuralNet() {
         }
     }
 
-    // Draw connections: hidden → output
+    // 🔌 Connessioni hidden → output
     for (let j = 0; j < hiddenSize; j++) {
         const from = hiddenPos[j];
         drawConnection(from.x, from.y, ox, oy, outputWeights[j]);
     }
 
-    // Now draw neurons on top
+    // 🎯 Calcola attivazioni hidden
+    const hiddenActivations: number[] = [];
+    for (let j = 0; j < hiddenSize; j++) {
+        const sum = input.reduce((acc, val, i) => acc + val * weights[j * inputSize + i], 0);
+        const activation = 1 / (1 + Math.exp(-sum));
+        hiddenActivations.push(activation);
+    }
+
+    // 🎯 Calcola output
+    const dot = hiddenActivations.reduce((sum, h, i) => sum + h * outputWeights[i], 0);
+    const outputSum = dot + outputBias;
+    const outputActivation = sigmoid(outputSum);
+
+    // 🧠 Disegna input neurons
     for (let i = 0; i < inputSize; i++) {
         const { x, y } = inputPos[i];
         drawNeuron(x, y, nodeRadius, 'lightblue', inputLabels[i], input[i]);
     }
 
+    // 🧠 Disegna hidden neurons
     for (let j = 0; j < hiddenSize; j++) {
         const { x, y } = hiddenPos[j];
-        drawNeuron(x, y, nodeRadius, 'teal', '', 0);
+        drawNeuron(x, y, nodeRadius, 'teal', '', hiddenActivations[j]);
     }
 
-    drawNeuron(ox, oy, nodeRadius, 'violet', 'Jump', outputBias);
+    // 🧠 Disegna output neuron
+    drawNeuron(ox, oy, nodeRadius, 'violet', 'Jump', outputActivation);
 }
 
 
@@ -174,13 +207,12 @@ function draw() {
 
     // Info
     const score = world.get_best_score();
-    const avg = world.get_average_score().toFixed(2);
+    // const avg = world.get_average_score().toFixed(2);
     const alive = world.count_alive();
     ctx.fillStyle = 'black';
     ctx.font = '14px monospace';
     ctx.fillText(`Score: ${score}`, 10, 20);
-    ctx.fillText(`Alive: ${alive}`, 10, 40);
-    ctx.fillText(`Avg score: ${avg}`, 10, 60);
+    ctx.fillText(`Alive: ${alive}`, 100, 20);
 }
 
 function drawFitnessGraph(history: number[]) {
