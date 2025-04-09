@@ -177,7 +177,7 @@ impl World {
         let brains: Vec<NeuralNet> = (0..POPULATION_SIZE)
             .map(|i| NeuralNet::new(3, i as u64))
             .collect();
-        let dinos: Vec<Dino> = (0..POPULATION_SIZE).map(|_| Dino::new(50.0 + rng.gen_range(-25..25), GROUND_Y + rng.gen_range(0..50))).collect();
+        let dinos: Vec<Dino> = (0..POPULATION_SIZE).map(|_| Dino::new(50.0 + rng.gen_range(-25..25) as f32, GROUND_Y + rng.gen_range(0..50) as f32)).collect();
 
         Self {
             brains,
