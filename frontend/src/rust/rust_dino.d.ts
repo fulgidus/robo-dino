@@ -32,6 +32,7 @@ export class World {
   get_population_size(): number;
   get_dino_x(index: number): number;
   get_dino_y(index: number): number;
+  get_speed_multiplier(): number;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -68,6 +69,7 @@ export interface InitOutput {
   readonly world_get_population_size: (a: number) => number;
   readonly world_get_dino_x: (a: number, b: number) => number;
   readonly world_get_dino_y: (a: number, b: number) => number;
+  readonly world_get_speed_multiplier: (a: number) => number;
   readonly __wbindgen_export_0: WebAssembly.Table;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;

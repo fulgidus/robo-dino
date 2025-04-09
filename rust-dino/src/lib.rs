@@ -167,6 +167,7 @@ pub struct World {
     best_index: usize,
     generation: u32,
     fitness_history: Vec<u32>,
+    speed_multiplier: f32,
 }
 
 #[wasm_bindgen]
@@ -195,6 +196,7 @@ impl World {
             best_index: 0,
             generation: 0,
             fitness_history: vec![],
+            speed_multiplier: 0.0,
         }
     }
 
@@ -206,7 +208,7 @@ impl World {
             .max()
             .unwrap_or(0) as f32;
         let speed_multiplier = 1.0 + best_score / 10.0;
-
+        self.speed_multiplier = speed_multiplier;
         for (i, dino) in self.dinos.iter_mut().enumerate() {
             if !dino.alive {
                 continue;
@@ -224,7 +226,7 @@ impl World {
                 let input_distance = dist;
                 let inputs = vec![
                     input_distance,
-                    speed_multiplier / 2.0, // ✅ normalizzato: da ~1 a 2 → 0.5 a 1
+                    speed_multiplier, // ✅ normalizzato: da ~1 a 2 → 0.5 a 1
                     ((dino.score + 1) as f32) / 100.0
                 ];
                 let output = self.brains[i].predict(&inputs);
@@ -441,5 +443,10 @@ impl World {
             .get(index)
             .map(|d| d.y)
             .unwrap_or(0.0)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_speed_multiplier(&self) -> f32 {
+        self.speed_multiplier
     }
 }

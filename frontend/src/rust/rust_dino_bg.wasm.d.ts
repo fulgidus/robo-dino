@@ -31,6 +31,7 @@ export const world_is_alive: (a: number, b: number) => number;
 export const world_get_population_size: (a: number) => number;
 export const world_get_dino_x: (a: number, b: number) => number;
 export const world_get_dino_y: (a: number, b: number) => number;
+export const world_get_speed_multiplier: (a: number) => number;
 export const __wbindgen_export_0: WebAssembly.Table;
 export const __wbindgen_free: (a: number, b: number, c: number) => void;
 export const __wbindgen_malloc: (a: number, b: number) => number;

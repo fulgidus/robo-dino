@@ -296,6 +296,13 @@ export class World {
         const ret = wasm.world_get_dino_y(this.__wbg_ptr, index);
         return ret;
     }
+    /**
+     * @returns {number}
+     */
+    get_speed_multiplier() {
+        const ret = wasm.world_get_speed_multiplier(this.__wbg_ptr);
+        return ret;
+    }
 }
 
 async function __wbg_load(module, imports) {

@@ -102,8 +102,8 @@ function drawNeuralNet() {
     //const velocityData = new DataView(memory.buffer);
 
     const normVY = bestVY;
-    const normScore = (world.get_best_score() + 1) / 100;
-    const input = [normDist, normVY, normScore];
+    const speedMultiplier = (world.get_speed_multiplier());
+    const input = [normDist, normVY, speedMultiplier];
 
     // 🔧 Posizionamento neuroni
     function layerPosition(index: number, columnX: number, singleFile = false): [number, number] {
@@ -127,8 +127,8 @@ function drawNeuralNet() {
     }
 
     // 🔴 Output neuron position
-    const ox = 510;
-    const oy = 120;
+    const ox = 500;
+    const oy = 140;
 
     // 🔌 Connessioni input → hidden
     for (let j = 0; j < hiddenSize; j++) {
