@@ -9,7 +9,7 @@ const DINO_HEIGHT: f32 = 20.0;
 const OBSTACLE_WIDTH: f32 = 5.0;
 const OBSTACLE_HEIGHT: f32 = 30.0;
 const GRAVITY: f32 = -90.0;
-const MAX_JUMP_FORCE: f32 = 85.0;
+const MAX_JUMP_FORCE: f32 = 90.0;
 const POPULATION_SIZE: usize = 200;
 
 fn sigmoid(x: f32) -> f32 {
@@ -81,7 +81,7 @@ pub struct NeuralNet {
 impl NeuralNet {
     pub fn new(num_inputs: usize, seed: u64) -> Self {
         let mut rng = SmallRng::seed_from_u64(seed);
-        let hidden_size = 6;
+        let hidden_size = 3;
 
         let input_weights = (0..hidden_size)
             .map(|_| (0..num_inputs).map(|_| rng.gen_range(-1.0..1.0)).collect())
@@ -199,7 +199,12 @@ impl World {
     }
 
     pub fn update(&mut self, dt: f32) {
-        let best_score = self.dinos[self.best_index].score as f32;
+        let best_score = self.dinos
+            .iter()
+            .filter(|d| d.alive)
+            .map(|d| d.score)
+            .max()
+            .unwrap_or(0) as f32;
         let speed_multiplier = 1.0 + best_score / 10.0;
 
         for (i, dino) in self.dinos.iter_mut().enumerate() {
@@ -224,6 +229,8 @@ impl World {
                 ];
                 let output = self.brains[i].predict(&inputs);
 
+                web_sys::console::log_1(&format!("🦀: Dino vel y {}", dino.velocity_y).into());
+
                 if dino.on_ground && output > 0.6 {
                     dino.velocity_y = MAX_JUMP_FORCE;
                     dino.on_ground = false;
@@ -241,21 +248,22 @@ impl World {
                     break;
                 }
             }
-
-            web_sys::console::log_1(
-                &format!("🦀: Weights for Dino {}: {:?}", i, self.brains[i].input_weights).into()
-            );
         }
         let alive_count = self.dinos
             .iter()
             .filter(|d| d.alive)
             .count();
         /* web_sys::console::log_1(&format!("🦀: {} dinos still alive", alive_count).into()); */
+        let max_x = self.obstacles
+            .iter()
+            .map(|o| o.x)
+            .fold(f32::NEG_INFINITY, f32::max);
         for obs in &mut self.obstacles {
             obs.x -= obs.base_speed * speed_multiplier * dt;
             if obs.x + OBSTACLE_WIDTH < 0.0 {
                 let mut rng = SmallRng::seed_from_u64((self.generation as u64) + (obs.x as u64));
-                obs.x += 600.0 + rng.random_range(-200.0..200.0);
+
+                obs.x = max_x + 300.0 + rng.gen_range(0.0..200.0);
                 for dino in self.dinos.iter_mut() {
                     if dino.alive {
                         dino.score += 1;
@@ -284,9 +292,9 @@ impl World {
         let seed_base = (self.generation as u64) * 1000;
         let mut new_brains = vec![best.clone()];
 
-        // Mutazioni pesanti del best
+        // Mutazioni del best
         for i in 1..POPULATION_SIZE {
-            new_brains.push(best.mutate(1.5, seed_base + (i as u64)));
+            new_brains.push(best.mutate(0.4, seed_base + (i as u64)));
         }
 
         self.brains = new_brains;
@@ -294,11 +302,11 @@ impl World {
         let mut rng = SmallRng::seed_from_u64(self.generation as u64);
         self.obstacles = vec![
             Obstacle {
-                x: 600.0 + rng.random_range(-100.0..100.0),
+                x: 200.0 + rng.random_range(-100.0..100.0),
                 base_speed: 50.0,
             },
             Obstacle {
-                x: 1000.0 + rng.random_range(-100.0..100.0),
+                x: 500.0 + rng.random_range(0.0..100.0),
                 base_speed: 50.0,
             }
         ];
@@ -314,13 +322,31 @@ impl World {
     }
 
     #[wasm_bindgen]
-    pub fn get_best_dino_velocity(&self) -> f32 {
-        self.dinos[self.best_index].velocity_y
+    pub fn export_velocity(&self) -> Box<[f32]> {
+        let value = self.dinos[self.best_index].velocity_y;
+        Box::new([value])
+    }
+
+    #[wasm_bindgen]
+    pub fn export_velocity_ptr(&self) -> *const f32 {
+        &self.dinos[self.best_index].velocity_y as *const f32
+    }
+
+    #[wasm_bindgen]
+    pub fn get_best_dino_velocity_y(&self) -> f32 {
+        let best_index = self.brains
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, b)| b.fitness)
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        self.dinos[best_index].velocity_y
     }
 
     pub fn get_best_score(&self) -> u32 {
         self.dinos
             .iter()
+            .filter(|d| d.alive)
             .map(|d| d.score)
             .max()
             .unwrap_or(0)

@@ -1,4 +1,6 @@
 import init, { World } from './rust/rust_dino.js';
+
+
 function sigmoid(x: number): number {
     return 1 / (1 + Math.exp(-x));
 }
@@ -83,16 +85,22 @@ function drawNeuralNet() {
 
     // 🔢 Calcola input reali del miglior dino
     const bestX = world.get_best_dino_x();
-    const bestVY = world.get_best_dino_velocity?.() ?? 0;
-    let minDist = Infinity;
+    const bestVY = world.get_best_dino_velocity_y();
 
+    //const ptr = world.get_best_dino_velocity_ptr();
+    //const velocity = new Float32Array(globalMemoryBuffer, ptr, 1)[0];
+    let minDist = Infinity;
     for (let i = 0; i < world.get_obstacle_count(); i++) {
         const ox = world.get_obstacle_x(i);
         const dx = ox - bestX;
         if (dx > 0 && dx < minDist) minDist = dx;
     }
 
+
+
     const normDist = minDist;
+    //const velocityData = new DataView(memory.buffer);
+
     const normVY = bestVY;
     const normScore = (world.get_best_score() + 1) / 100;
     const input = [normDist, normVY, normScore];
@@ -114,7 +122,7 @@ function drawNeuralNet() {
 
     // 🔷 Hidden neuron positions
     for (let j = 0; j < hiddenSize; j++) {
-        const [x, y] = layerPosition(j, 300);
+        const [x, y] = layerPosition(j, 300, true);
         hiddenPos.push({ x, y });
     }
 
@@ -209,10 +217,12 @@ function draw() {
     const score = world.get_best_score();
     // const avg = world.get_average_score().toFixed(2);
     const alive = world.count_alive();
+    const generation = world.get_generation();
     ctx.fillStyle = 'black';
     ctx.font = '14px monospace';
     ctx.fillText(`Score: ${score}`, 10, 20);
     ctx.fillText(`Alive: ${alive}`, 100, 20);
+    ctx.fillText(`Generation: ${generation}`, 350, 20);
 }
 
 function drawFitnessGraph(history: number[]) {
@@ -232,11 +242,17 @@ function drawFitnessGraph(history: number[]) {
     fitnessCtx.stroke();
 }
 
-function loop() {
+function loop(buff: any) {
     if (!paused) {
         world.update(1 / 60);
     }
 
+    /*     const ptr = world.export_velocity_ptr();
+        const velocity = new Float32Array(buff, ptr, 1)[0];
+    
+        const velocityDataView = new DataView(buff).getInt32(ptr, true);
+        console.log('velocityDataView', velocity, ptr, velocityDataView, buff)
+     */
     draw();
     drawWeightHeatmap();
     drawFitnessGraph(fitnessHistory);
@@ -250,12 +266,13 @@ function loop() {
         // if (fitnessHistory.length > 100) fitnessHistory.shift();
     }
 
-    requestAnimationFrame(loop);
+    requestAnimationFrame(() => loop(buff));
 }
 
-init().then(() => {
+
+init().then((val) => {
     world = new World();
-    requestAnimationFrame(loop);
+    requestAnimationFrame(() => loop(val.memory.buffer));
 });
 
 let paused = false;
