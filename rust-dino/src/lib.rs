@@ -10,7 +10,7 @@ const OBSTACLE_WIDTH: f32 = 20.0;
 const OBSTACLE_HEIGHT: f32 = 30.0;
 const GRAVITY: f32 = -90.0;
 const MAX_JUMP_FORCE: f32 = 85.0;
-const POPULATION_SIZE: usize = 5000;
+const POPULATION_SIZE: usize = 200;
 
 fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
@@ -177,14 +177,14 @@ impl World {
         let brains: Vec<NeuralNet> = (0..POPULATION_SIZE)
             .map(|i| NeuralNet::new(3, i as u64))
             .collect();
-        let dinos: Vec<Dino> = (0..POPULATION_SIZE).map(|_| Dino::new(50.0 + rng.gen_range(-25..25) as f32, GROUND_Y)).collect();
+        let dinos: Vec<Dino> = (0..POPULATION_SIZE).map(|_| Dino::new(50.0, GROUND_Y)).collect();
 
         Self {
             brains,
             dinos,
             obstacles: vec![
                 Obstacle {
-                    x: 300.0 + rng.random_range(-100.0..100.0),
+                    x: 200.0 + rng.random_range(-50.0..0.0),
                     base_speed: 50.0,
                 },
                 Obstacle {
