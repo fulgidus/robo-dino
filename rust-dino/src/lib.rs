@@ -6,7 +6,7 @@ use web_sys::console;
 const GROUND_Y: f32 = 0.0;
 const DINO_WIDTH: f32 = 20.0;
 const DINO_HEIGHT: f32 = 20.0;
-const OBSTACLE_WIDTH: f32 = 20.0;
+const OBSTACLE_WIDTH: f32 = 5.0;
 const OBSTACLE_HEIGHT: f32 = 30.0;
 const GRAVITY: f32 = -90.0;
 const MAX_JUMP_FORCE: f32 = 85.0;
@@ -81,7 +81,7 @@ pub struct NeuralNet {
 impl NeuralNet {
     pub fn new(num_inputs: usize, seed: u64) -> Self {
         let mut rng = SmallRng::seed_from_u64(seed);
-        let hidden_size = 5;
+        let hidden_size = 6;
 
         let input_weights = (0..hidden_size)
             .map(|_| (0..num_inputs).map(|_| rng.gen_range(-1.0..1.0)).collect())
@@ -216,11 +216,11 @@ impl World {
                     .min_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
             {
                 let dist = obs.x - dino.x;
-                let input_distance = ((150.0 - dist) / 150.0).clamp(0.0, 1.0);
+                let input_distance = dist;
                 let inputs = vec![
                     input_distance,
                     speed_multiplier / 2.0, // ✅ normalizzato: da ~1 a 2 → 0.5 a 1
-                    (dino.score as f32) / 100.0
+                    ((dino.score + 1) as f32) / 100.0
                 ];
                 let output = self.brains[i].predict(&inputs);
 
@@ -237,7 +237,7 @@ impl World {
                 if Self::is_collision_with(dino.x, dino.y, obs.x, GROUND_Y) {
                     dino.alive = false;
                     web_sys::console::log_1(&format!("🦀: Dino {} morto", i).into());
-                    self.brains[i].fitness = dino.score * 10 + dino.time_alive;
+                    self.brains[i].fitness = dino.time_alive;
                     break;
                 }
             }
@@ -280,21 +280,13 @@ impl World {
         web_sys::console::log_1(&"🦀: 🌱 Evolving!".into());
         let best = self.brains[self.best_index].clone();
         self.fitness_history.push(best.fitness);
-        if self.fitness_history.len() > 100 {
-            self.fitness_history.remove(0);
-        }
 
         let seed_base = (self.generation as u64) * 1000;
         let mut new_brains = vec![best.clone()];
 
         // Mutazioni pesanti del best
-        for i in 1..POPULATION_SIZE / 2 {
+        for i in 1..POPULATION_SIZE {
             new_brains.push(best.mutate(1.5, seed_base + (i as u64)));
-        }
-
-        // Individui nuovi random
-        for i in POPULATION_SIZE / 2..POPULATION_SIZE {
-            new_brains.push(NeuralNet::new(3, seed_base + (i as u64)));
         }
 
         self.brains = new_brains;
@@ -306,7 +298,7 @@ impl World {
                 base_speed: 50.0,
             },
             Obstacle {
-                x: 1200.0 + rng.random_range(-100.0..100.0),
+                x: 1000.0 + rng.random_range(-100.0..100.0),
                 base_speed: 50.0,
             }
         ];

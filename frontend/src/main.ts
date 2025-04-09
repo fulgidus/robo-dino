@@ -69,7 +69,7 @@ function drawConnection(x1: number, y1: number, x2: number, y2: number, weight: 
 function drawNeuralNet() {
     nnCtx.clearRect(0, 0, nnCanvas.width, nnCanvas.height);
 
-    const inputLabels = ['Dist.', 'Vel.', 'Score'];
+    const inputLabels = ['Dist.', 'Vert. Speed', 'Horiz. Speed'];
     const weights = world.get_best_input_weights(); // flat [hidden][input]
     const outputWeights = world.get_best_output_weights();
     const outputBias = world.get_best_bias();
@@ -92,9 +92,9 @@ function drawNeuralNet() {
         if (dx > 0 && dx < minDist) minDist = dx;
     }
 
-    const normDist = Math.max(0, Math.min(1, (150 - minDist) / 150));
-    const normVY = bestVY / 10;
-    const normScore = world.get_best_score() / 100;
+    const normDist = minDist;
+    const normVY = bestVY;
+    const normScore = (world.get_best_score() + 1) / 100;
     const input = [normDist, normVY, normScore];
 
     // 🔧 Posizionamento neuroni
@@ -114,7 +114,7 @@ function drawNeuralNet() {
 
     // 🔷 Hidden neuron positions
     for (let j = 0; j < hiddenSize; j++) {
-        const [x, y] = layerPosition(j, 300, true);
+        const [x, y] = layerPosition(j, 300);
         hiddenPos.push({ x, y });
     }
 
@@ -202,7 +202,7 @@ function draw() {
     for (let i = 0; i < world.get_obstacle_count(); i++) {
         const ox = world.get_obstacle_x(i);
         ctx.fillStyle = 'red';
-        ctx.fillRect(ox, height - 20 - 30, 20, 30);
+        ctx.fillRect(ox, height - 20 - 30, 5, 30);
     }
 
     // Info
