@@ -61,4 +61,4 @@ A "labour-of-love" side project made to learn, tinker, and watch a dino run acro
 
 ## 📸 Screenshot
 
-_(Coming soon)_
+![Screenshot](screen.png)
