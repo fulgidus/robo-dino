@@ -40,11 +40,6 @@ This will:
 	```ts
   import init, { World } from './rust/rust_dino.js';
 	  ```
-## 🎮 Controls
-
-- **Click** on the canvas to make the dino jump
-- Obstacles get faster as your score increases
-- Collisions reset your score (you lose!)
 ## ✨ Tech Stack
 
 - 🦀 **Rust** – high-performance game logic
