@@ -1,44 +1,88 @@
-name: Deploy Robo Dino to GitHub Pages
+name: Test, Build, and Deploy Robo Dino
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
 
 permissions:
   contents: write
 
 jobs:
-  build-and-deploy:
+  # --- Job 1: Test e Build ---
+  test_and_build:
+    name: Test and Build
     runs-on: ubuntu-latest
-
     defaults:
       run:
         shell: bash
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Usa v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable # Azione aggiornata e raccomandata
         with:
           toolchain: stable
-          override: true
+          components: clippy, rustfmt
+
+      - name: Cache Rust dependencies # Velocizza le build successive
+        uses: Swatinem/rust-cache@v2
+
+      # Opzionale: Aggiungi controlli di qualità
+      # - name: Check formatting
+      #   working-directory: rust-dino
+      #   run: cargo fmt --all -- --check
+      # - name: Run Clippy
+      #   working-directory: rust-dino
+      #   run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run tests # <-- PASSO FONDAMENTALE PER I TEST
+        working-directory: rust-dino
+        run: cargo test --verbose
 
       - name: Install wasm-pack
-        run: cargo install wasm-pack
+        uses: taiki-e/install-action@wasm-pack # Azione dedicata per wasm-pack
 
       - name: Build WASM module
         working-directory: rust-dino
         run: |
           wasm-pack build --target web --out-dir ../frontend/src/rust
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      # Carica l'artefatto WASM per il job di deploy
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
         with:
-          node-version: 18
+          name: wasm-build
+          path: frontend/src/rust # Il percorso della directory generata da wasm-pack
 
-      - name: Install dependencies
+  # --- Job 2: Deploy ---
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: test_and_build # <-- DIPENDENZA: Esegui solo se test_and_build ha successo
+    runs-on: ubuntu-latest
+    # Esegui solo su push diretto a main (non su PR)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # Scarica l'artefatto WASM dal job precedente
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-build
+          path: frontend/src/rust # Scarica nella stessa posizione relativa
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # Usa v4
+        with:
+          node-version: 18 # Mantieni la versione Node specificata
+
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm install
 
@@ -47,8 +91,8 @@ jobs:
         run: npm run build
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4 # Usa v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: frontend/dist
-          enable_jekyll: false   # evita che GitHub Pages nasconda i file che iniziano con _
+          # enable_jekyll: false # Non più necessario con v4, ma non fa male lasciarlo
