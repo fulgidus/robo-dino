@@ -53,7 +53,7 @@ This will:
 Built as a fun technical experiment to explore WebAssembly and Rust in a modern frontend setup.  
 A "labour-of-love" side project made to learn, tinker, and watch a dino run across your browser.
 
-[Ream more about it here](https://fulgidus.github.io/posts/auto-dino)
+[Read more about it here](https://fulgidus.github.io/posts/auto-dino)
 
 ## Try it
 
