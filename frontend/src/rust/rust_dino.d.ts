@@ -12,8 +12,6 @@ export class World {
   update(dt: number): void;
   get_best_dino_x(): number;
   get_best_dino_y(): number;
-  export_velocity(): Float32Array;
-  export_velocity_ptr(): number;
   get_best_dino_velocity_y(): number;
   get_best_score(): number;
   get_generation(): number;
@@ -49,8 +47,6 @@ export interface InitOutput {
   readonly world_update: (a: number, b: number) => void;
   readonly world_get_best_dino_x: (a: number) => number;
   readonly world_get_best_dino_y: (a: number) => number;
-  readonly world_export_velocity: (a: number) => [number, number];
-  readonly world_export_velocity_ptr: (a: number) => number;
   readonly world_get_best_dino_velocity_y: (a: number) => number;
   readonly world_get_best_score: (a: number) => number;
   readonly world_get_generation: (a: number) => number;
