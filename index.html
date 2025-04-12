@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <title>Robo Dino</title>
-  <script type="module" crossorigin src="/robo-dino/assets/index-Bbz8_Ewm.js"></script>
+  <script type="module" crossorigin src="/robo-dino/assets/index-BdD3UUVl.js"></script>
   <link rel="stylesheet" crossorigin href="/robo-dino/assets/index-B-O7BxQ7.css">
 </head>
 
@@ -13,7 +13,30 @@
     <canvas id="fitness" width="600" height="100" style="margin-top: 1rem;"></canvas>
     <canvas id="weightsCanvas" width="600" height="100" style="margin-top: 1rem;"></canvas>
     <canvas id="neuralNet" width="600" height="300" style="margin-top: 1rem;"></canvas>
-    <button id="togglePause">⏸️ Pause</button>
+
+    <div id="controls"
+        style="position: fixed; top: 10px; right: 10px; background: #fff; border: 1px solid #ccc; padding: 10px; font-family: sans-serif; z-index: 1000;">
+        <label>🕒 Speed:
+            <input type="range" id="speed" min="0.1" max="3" step="0.1" value="1">
+        </label><br>
+
+        <label>👥 Agents:
+            <input type="number" id="agents" min="1" max="5000" step="1" value="200">
+        </label><br>
+
+        <label>
+            <input type="checkbox" id="showAll" checked>
+            Show all dinos
+        </label><br>
+
+        <label>
+            <input type="checkbox" id="showOnlyAlive" checked>
+            Show only alive
+        </label><br>
+        <button id="togglePause">⏸️ Pause</button>
+        <button id="applySettings">🔁 Apply Settings</button>
+    </div>
+
 </body>
 
 
