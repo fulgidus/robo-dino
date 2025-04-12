@@ -533,148 +533,140 @@ mod tests {
     #[test]
     fn test_best_index_updates_after_update() {
         // 1. Arrange: Create a world
-        let mut world = World::new();
-        // let initial_best_index = world.best_index;
+        let mut world = World::new(POPULATION_SIZE);
+        assert!(POPULATION_SIZE >= 3, "Test requires at least 3 dinos");
 
-        // Ensure we have at least 2 dinos to compare
-        assert!(POPULATION_SIZE >= 2, "Test requires at least 2 dinos");
-
-        // 2. Act: Simulate some steps and manually make one dino 'better'
-        // We'll manually mark some dinos as dead and assign fitness
-        // based on a simulated time_alive.
-
-        // Let's say dino at index 1 survives longer than dino at index 0
+        // 2. Act: Manually set fitness and mark all dinos dead to trigger
+        //         the pre-evolve best_index calculation based on fitness.
         let target_best_index = 1;
         let lower_fitness = 50;
         let higher_fitness = 100;
 
-        // Mark dino 0 as dead with lower fitness
+        // Mark dino 0 dead with lower fitness
         if let Some(dino) = world.dinos.get_mut(0) {
             dino.alive = false;
-            // Normally fitness is time_alive, we set it directly for the test
-            if let Some(brain) = world.brains.get_mut(0) {
-                brain.fitness = lower_fitness;
-            }
         } else {
-            panic!("Dino at index 0 not found");
+            panic!("Dino 0 setup failed");
+        }
+        if let Some(brain) = world.brains.get_mut(0) {
+            brain.fitness = lower_fitness;
+        } else {
+            panic!("Brain 0 setup failed");
         }
 
-        // Mark dino 1 as dead with higher fitness
+        // Mark dino 1 dead with higher fitness
         if let Some(dino) = world.dinos.get_mut(target_best_index) {
             dino.alive = false;
-            // Normally fitness is time_alive, we set it directly for the test
-            if let Some(brain) = world.brains.get_mut(target_best_index) {
-                brain.fitness = higher_fitness;
-            }
         } else {
-            panic!("Dino at index {} not found", target_best_index);
+            panic!("Dino {} setup failed", target_best_index);
+        }
+        if let Some(brain) = world.brains.get_mut(target_best_index) {
+            brain.fitness = higher_fitness;
+        } else {
+            panic!("Brain {} setup failed", target_best_index);
         }
 
-        // Mark some other dinos dead with varying fitness to make it more realistic
-        if POPULATION_SIZE > 2 {
-            if let Some(dino) = world.dinos.get_mut(2) {
+        // Mark dino 2 dead with even lower fitness
+        if let Some(dino) = world.dinos.get_mut(2) {
+            dino.alive = false;
+        } else {
+            panic!("Dino 2 setup failed");
+        }
+        if let Some(brain) = world.brains.get_mut(2) {
+            brain.fitness = lower_fitness - 10;
+        } else {
+            panic!("Brain 2 setup failed");
+        }
+
+        // Mark ALL OTHER dinos dead as well to ensure the pre-evolve condition is met
+        for i in 3..POPULATION_SIZE {
+            if let Some(dino) = world.dinos.get_mut(i) {
                 dino.alive = false;
-                if let Some(brain) = world.brains.get_mut(2) {
-                    brain.fitness = lower_fitness - 10; // Even lower
-                }
             } else {
-                panic!("Dino at index 2 not found");
+                panic!("Dino {} setup failed", i);
+            }
+            // Optionally set their fitness too, though not strictly needed for this test's goal
+            if let Some(brain) = world.brains.get_mut(i) {
+                brain.fitness = 1;
+            } else {
+                panic!("Brain {} setup failed", i);
             }
         }
 
-        // Run update once - this is where best_index should be recalculated
-        // based on the fitness values we just set.
-        // The dt value doesn't significantly matter for this specific test's goal.
-        world.update(0.1);
+        // Run update once. Since all dinos are dead, this *should* trigger
+        // the fitness-based best_index calculation right before evolve().
+        world.update(0.1); // dt doesn't matter
 
         // 3. Assert: Check if best_index points to the dino with highest fitness
+        // Note: evolve() runs immediately after, but best_index was set *before* it.
         assert_eq!(
             world.best_index,
             target_best_index,
-            "best_index should point to the dino with the highest fitness after update"
+            "best_index should point to the brain with the highest fitness ({}) right before evolve",
+            target_best_index
         );
-
-        // Optional: Verify it changed from the initial value (usually 0)
-        // This might fail if target_best_index happens to be 0, which is fine.
-        // assert_ne!(world.best_index, initial_best_index, "best_index should have changed");
     }
+
     #[test]
     fn test_best_index_updates_when_best_dino_dies() {
-        // 1. Arrange: Create a world and establish an initial best dino
-        let mut world = World::new();
+        // 1. Arrange: Create a world and establish an initial best dino based on SCORE
+        let mut world = World::new(POPULATION_SIZE);
         assert!(POPULATION_SIZE >= 3, "Test requires at least 3 dinos for clarity");
 
         let first_best_idx = 1;
         let second_best_idx = 2;
-        let high_fitness = 100;
-        let medium_fitness = 50;
-        let low_fitness = 10;
+        let high_score = 100;
+        let medium_score = 50;
+        let low_score = 10;
 
-        // Assign initial fitness values (all dinos start alive)
-        if let Some(brain) = world.brains.get_mut(first_best_idx) {
-            brain.fitness = high_fitness;
+        // Assign initial SCORES (all dinos start alive)
+        if let Some(dino) = world.dinos.get_mut(first_best_idx) {
+            dino.score = high_score;
         } else {
-            panic!("Brain at index {} not found", first_best_idx);
+            panic!("Dino {} setup failed", first_best_idx);
         }
-
-        if let Some(brain) = world.brains.get_mut(second_best_idx) {
-            brain.fitness = medium_fitness;
+        if let Some(dino) = world.dinos.get_mut(second_best_idx) {
+            dino.score = medium_score;
         } else {
-            panic!("Brain at index {} not found", second_best_idx);
+            panic!("Dino {} setup failed", second_best_idx);
         }
-
-        if let Some(brain) = world.brains.get_mut(0) {
-            // Another dino for comparison
-            brain.fitness = low_fitness;
+        if let Some(dino) = world.dinos.get_mut(0) {
+            dino.score = low_score;
         } else {
-            panic!("Brain at index 0 not found");
+            panic!("Dino 0 setup failed");
         }
+        // Other dinos have score 0
 
-        // Run update once to calculate the initial best_index based on fitness
+        // Run update once to calculate the initial best_index based on score
         world.update(0.01); // dt doesn't matter much here
 
-        // Verify the initial best index is correct
+        // Verify the initial best index is correct (based on highest score)
         assert_eq!(
             world.best_index,
             first_best_idx,
-            "Initial best_index should be the one with highest fitness ({})",
+            "Initial best_index should be the one with highest score ({})",
             first_best_idx
         );
         assert!(world.dinos[first_best_idx].alive, "Initial best dino should be alive");
         assert!(world.dinos[second_best_idx].alive, "Second best dino should be alive");
 
-        // 2. Act: Kill the current best dino and run update again
+        // 2. Act: Kill the current best dino (highest score)
         if let Some(dino) = world.dinos.get_mut(first_best_idx) {
             dino.alive = false;
-            // Note: Its fitness remains high in the brain struct, but it's no longer alive.
+            // Its score remains, but it's no longer considered by the score-based calculation
         } else {
             panic!("Dino at index {} not found", first_best_idx);
         }
 
-        // Run update again. The best_index calculation should now potentially pick the next best.
+        // Run update again. The best_index calculation should now pick the living dino
+        // with the next highest score.
         world.update(0.01);
 
-        // 3. Assert: Check if best_index now points to the second best dino
-        // IMPORTANT: This assertion depends on the *desired* behavior.
-        // The *current* code calculates best_index based *only* on brain.fitness,
-        // ignoring dino.alive. So, this test *will fail* with the current code.
-        // If you want best_index to track the best *living* dino (or best overall if all dead),
-        // you need to modify the best_index calculation logic in World::update.
-        // Assuming the desired logic is to find the best among all (even dead):
-        assert_eq!(
-            world.best_index,
-            first_best_idx, // It should STILL be the first best based on raw fitness
-            "best_index should still point to the highest fitness brain ({}), even if the dino is dead",
-            first_best_idx
-        );
-
-        // --- OR ---
-        // Assuming the desired logic is to find the best *living* dino:
-        /* // THIS WILL FAIL WITH CURRENT CODE
+        // 3. Assert: Check if best_index now points to the second best dino (based on score)
         assert_eq!(
             world.best_index,
             second_best_idx,
-            "best_index should update to the next highest fitness dino ({}) after the best one dies",
+            "best_index should update to the living dino with the next highest score ({}) after the best one dies",
             second_best_idx
         );
         assert_ne!(
@@ -683,78 +675,72 @@ mod tests {
             "best_index should no longer point to the dead dino ({})",
             first_best_idx
         );
-        */
     }
 
     #[test]
-    fn test_get_best_dino_velocity_y_matches_best_fitness_dino() {
-        // 1. Arrange: Create a world and set up fitness/velocities
-        let mut world = World::new();
+    // Rename to reflect it uses score-based best_index
+    fn test_get_best_dino_velocity_y_matches_best_score_dino() {
+        // 1. Arrange: Create a world and set up scores/velocities
+        let mut world = World::new(POPULATION_SIZE);
         assert!(POPULATION_SIZE >= 2, "Test requires at least 2 dinos");
 
-        let best_fitness_idx = 1;
+        let best_score_idx = 1; // Index of the dino we'll give the highest score
         let other_idx = 0;
-        let high_fitness = 100;
-        let low_fitness = 50;
-        let target_velocity = 15.5; // Velocità specifica per il dino migliore
-        let other_velocity = -5.0; // Velocità diversa per l'altro dino
+        let high_score = 100;
+        let low_score = 50;
+        let target_velocity = 15.5; // Velocity for the best-scoring dino
+        let other_velocity = -5.0; // Velocity for the other dino
 
-        // Assign fitness values
-        if let Some(brain) = world.brains.get_mut(best_fitness_idx) {
-            brain.fitness = high_fitness;
+        // Assign scores
+        if let Some(dino) = world.dinos.get_mut(best_score_idx) {
+            dino.score = high_score;
         } else {
-            panic!("Brain at index {} not found", best_fitness_idx);
+            panic!("Dino {} setup failed", best_score_idx);
         }
-
-        if let Some(brain) = world.brains.get_mut(other_idx) {
-            brain.fitness = low_fitness;
+        if let Some(dino) = world.dinos.get_mut(other_idx) {
+            dino.score = low_score;
         } else {
-            panic!("Brain at index {} not found", other_idx);
+            panic!("Dino {} setup failed", other_idx);
         }
 
         // Assign specific velocities
-        if let Some(dino) = world.dinos.get_mut(best_fitness_idx) {
+        if let Some(dino) = world.dinos.get_mut(best_score_idx) {
             dino.velocity_y = target_velocity;
-            // Non importa se è vivo o morto per questo test,
-            // dato che get_best_dino_velocity_y usa best_index basato sulla fitness
         } else {
-            panic!("Dino at index {} not found", best_fitness_idx);
+            panic!("Dino {} setup failed", best_score_idx);
         }
-
         if let Some(dino) = world.dinos.get_mut(other_idx) {
             dino.velocity_y = other_velocity;
         } else {
-            panic!("Dino at index {} not found", other_idx);
+            panic!("Dino {} setup failed", other_idx);
         }
 
-        // Run update once to ensure best_index is calculated based on fitness
+        // Run update once to ensure best_index is calculated based on score
         world.update(0.01);
 
         // Verify best_index is set correctly as a precondition
         assert_eq!(
             world.best_index,
-            best_fitness_idx,
-            "Precondition failed: best_index should be {}",
-            best_fitness_idx
+            best_score_idx,
+            "Precondition failed: best_index should be {} based on score",
+            best_score_idx
         );
 
         // 2. Act: Call the function under test
         let reported_velocity = world.get_best_dino_velocity_y();
 
         // 3. Assert: Check if the returned velocity matches the target velocity
-        assert_eq!(
-            reported_velocity,
-            target_velocity,
+        assert!(
+            (reported_velocity - target_velocity).abs() < f32::EPSILON, // Use float comparison
             "get_best_dino_velocity_y should return the velocity_y ({}) of the dino at best_index ({}), but got {}",
             target_velocity,
-            best_fitness_idx,
+            best_score_idx,
             reported_velocity
         );
 
         // Optional: Assert it's different from the other dino's velocity
-        assert_ne!(
-            reported_velocity,
-            other_velocity,
+        assert!(
+            (reported_velocity - other_velocity).abs() > f32::EPSILON,
             "Reported velocity should be different from the other dino's velocity"
         );
     }
@@ -851,7 +837,7 @@ mod tests {
 
     #[test]
     fn test_world_evolve() {
-        let mut world = World::new();
+        let mut world = World::new(POPULATION_SIZE);
         assert!(POPULATION_SIZE >= 2, "Evolve test requires at least 2 population size");
 
         // Imposta fitness diverse per identificare il migliore
@@ -967,7 +953,7 @@ mod tests {
 
     #[test]
     fn test_obstacle_movement_and_reset_and_score() {
-        let mut world = World::new();
+        let mut world = World::new(POPULATION_SIZE);
         let dt = 0.1;
         let initial_speed_multiplier = 1.0; // Assume base speed for simplicity
         world.speed_multiplier = initial_speed_multiplier; // Set manually for test predictability
@@ -1069,7 +1055,7 @@ mod tests {
 
     #[test]
     fn test_world_setters() {
-        let mut world = World::new();
+        let mut world = World::new(POPULATION_SIZE);
         assert!(POPULATION_SIZE > 0, "Test requires population size > 0");
 
         // Define test data
@@ -1099,7 +1085,7 @@ mod tests {
     #[test]
     fn test_nn_input_calculation_logic() {
         // Arrange: Set up world state manually to test input calculation
-        let mut world = World::new();
+        let mut world = World::new(POPULATION_SIZE);
         let dino_index = 0;
         let dino_x_pos = 50.0;
         let dino_score_val = 15;
@@ -1226,7 +1212,7 @@ mod tests {
     #[test]
     fn test_update_multiple_close_obstacles() {
         // Arrange
-        let mut world = World::new();
+        let mut world = World::new(POPULATION_SIZE);
         let dt = 0.0167; // Simulate one frame ~60fps
         let dino_index = 0;
         let other_alive_dino_index = 1; // Keep this one alive
@@ -1310,7 +1296,7 @@ mod tests {
     #[test]
     fn test_dino_jump_over_obstacle_space() {
         // Arrange
-        let mut world = World::new();
+        let mut world = World::new(POPULATION_SIZE);
         let dt = 0.05; // A slightly larger time step to see more movement
         let dino_index = 0;
         let other_alive_dino_index = 1; // Keep this one alive to prevent evolve
