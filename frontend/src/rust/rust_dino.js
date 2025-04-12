@@ -117,8 +117,11 @@ export class World {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_world_free(ptr, 0);
     }
-    constructor() {
-        const ret = wasm.world_new();
+    /**
+     * @param {number} count
+     */
+    constructor(count) {
+        const ret = wasm.world_new(count);
         this.__wbg_ptr = ret >>> 0;
         WorldFinalization.register(this, this.__wbg_ptr, this);
         return this;
@@ -149,6 +152,13 @@ export class World {
     get_best_dino_velocity_y() {
         const ret = wasm.world_get_best_dino_velocity_y(this.__wbg_ptr);
         return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get_best_index() {
+        const ret = wasm.world_get_best_index(this.__wbg_ptr);
+        return ret >>> 0;
     }
     /**
      * @returns {number}

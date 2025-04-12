@@ -182,12 +182,10 @@ pub struct World {
 #[wasm_bindgen]
 impl World {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
+    pub fn new(count: usize) -> Self {
         let mut rng = SmallRng::seed_from_u64(42);
-        let brains: Vec<NeuralNet> = (0..POPULATION_SIZE)
-            .map(|i| NeuralNet::new(3, i as u64))
-            .collect();
-        let dinos: Vec<Dino> = (0..POPULATION_SIZE).map(|_| Dino::new(50.0, GROUND_Y)).collect();
+        let brains: Vec<NeuralNet> = (0..count).map(|i| NeuralNet::new(3, i as u64)).collect();
+        let dinos: Vec<Dino> = (0..count).map(|_| Dino::new(50.0, GROUND_Y)).collect();
 
         Self {
             brains,
@@ -302,13 +300,13 @@ impl World {
             .count(); */
         /* #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&format!("🦀: {} dinos still alive", alive_count).into()); */
-
-        self.best_index = self.brains
+        let best_alive_index = self.dinos
             .iter()
             .enumerate()
-            .max_by_key(|(_, b)| b.fitness)
-            .map(|(i, _)| i)
-            .unwrap_or(0);
+            .filter(|(_, d)| d.alive) // Considera solo i dinosauri vivi
+            .max_by_key(|(_, d)| d.score) // Trova quello con il punteggio massimo
+            .map(|(i, _)| i); // Estrai l'indice
+        self.best_index = best_alive_index.unwrap_or(0);
 
         let max_x = self.obstacles
             .iter()
@@ -329,6 +327,13 @@ impl World {
         }
 
         if self.dinos.iter().all(|d| !d.alive) {
+            self.best_index = self.brains
+                .iter()
+                .enumerate()
+                .max_by_key(|(_, b)| b.fitness) // Usa la fitness qui!
+                .map(|(i, _)| i)
+                .unwrap_or(0); // Fallback se tutti hanno fitness 0 (improbabile)
+
             self.evolve();
         }
     }
@@ -407,6 +412,11 @@ impl World {
             .map(|d| d.velocity_y) // Get its velocity
             .unwrap_or(0.0) // Default if no dinos are alive */
         self.dinos.get(self.best_index).map_or(0.0, |d| d.velocity_y)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_best_index(&self) -> usize {
+        self.best_index
     }
 
     pub fn get_best_score(&self) -> u32 {

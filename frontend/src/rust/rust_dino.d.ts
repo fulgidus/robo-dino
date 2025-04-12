@@ -8,11 +8,12 @@ export class Obstacle {
 }
 export class World {
   free(): void;
-  constructor();
+  constructor(count: number);
   update(dt: number): void;
   get_best_dino_x(): number;
   get_best_dino_y(): number;
   get_best_dino_velocity_y(): number;
+  get_best_index(): number;
   get_best_score(): number;
   get_generation(): number;
   get_obstacle_count(): number;
@@ -43,11 +44,12 @@ export interface InitOutput {
   readonly __wbg_get_obstacle_base_speed: (a: number) => number;
   readonly __wbg_set_obstacle_base_speed: (a: number, b: number) => void;
   readonly __wbg_world_free: (a: number, b: number) => void;
-  readonly world_new: () => number;
+  readonly world_new: (a: number) => number;
   readonly world_update: (a: number, b: number) => void;
   readonly world_get_best_dino_x: (a: number) => number;
   readonly world_get_best_dino_y: (a: number) => number;
   readonly world_get_best_dino_velocity_y: (a: number) => number;
+  readonly world_get_best_index: (a: number) => number;
   readonly world_get_best_score: (a: number) => number;
   readonly world_get_generation: (a: number) => number;
   readonly world_get_obstacle_count: (a: number) => number;
