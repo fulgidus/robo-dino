@@ -244,6 +244,28 @@ impl World {
                 if dino.on_ground && output > 0.6 {
                     dino.velocity_y = MAX_JUMP_FORCE;
                     dino.on_ground = false;
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!(
+                            "🦀: Dino {} JUMPING! (OnGround={}, Output={:.6})",
+                            i,
+                            dino.on_ground,
+                            output
+                        ).into()
+                    );
+                } else {
+                    #[cfg(target_arch = "wasm32")]
+                    if dino.on_ground {
+                        // Logga solo se era a terra ma l'output era <= 0.6
+                        web_sys::console::log_1(
+                            &format!(
+                                "🦀: Dino {} NO JUMP (OnGround={}, Output={:.6} <= 0.6)",
+                                i,
+                                dino.on_ground,
+                                output
+                            ).into()
+                        );
+                    }
                 }
             }
 
@@ -500,6 +522,26 @@ impl World {
     #[wasm_bindgen]
     pub fn is_alive(&self, index: usize) -> bool {
         self.dinos.get(index).map_or(false, |d| d.alive)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_best_hidden_biases(&self) -> Vec<f32> {
+        // Ensure best_index is within the bounds of the brains vector
+        if self.best_index < self.brains.len() {
+            // Clone the hidden_biases vector from the best brain and return it
+            self.brains[self.best_index].hidden_biases.clone()
+        } else {
+            // Fallback: If best_index is invalid (e.g., at the very start, or an error occurred)
+            // return a vector of zeros with the correct size if possible, or an empty vector.
+            // This prevents errors in the JavaScript side trying to access elements.
+            if let Some(first_brain) = self.brains.first() {
+                // Return a vector of zeros matching the expected hidden layer size
+                vec![0.0; first_brain.hidden_biases.len()]
+            } else {
+                // If there are no brains at all (shouldn't happen in normal operation)
+                vec![]
+            }
+        }
     }
 
     pub fn get_population_size(&self) -> usize {

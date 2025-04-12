@@ -27,6 +27,7 @@ export const world_set_best_bias: (a: number, b: number) => void;
 export const world_count_alive: (a: number) => number;
 export const world_get_average_score: (a: number) => number;
 export const world_is_alive: (a: number, b: number) => number;
+export const world_get_best_hidden_biases: (a: number) => [number, number];
 export const world_get_population_size: (a: number) => number;
 export const world_get_dino_x: (a: number, b: number) => number;
 export const world_get_dino_y: (a: number, b: number) => number;

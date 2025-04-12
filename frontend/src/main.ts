@@ -199,63 +199,98 @@ function drawNnLegend(ctx: CanvasRenderingContext2D, startX: number, startY: num
     ctx.lineWidth = 1;
 }
 
-function drawNeuralNet(time: number) { // Aggiunto parametro time
+function drawNeuralNet(time: number) {
     nnCtx.clearRect(0, 0, nnCanvas.width, nnCanvas.height);
 
-    const inputLabels = ['Dist.', 'Vert. Speed', 'Horiz. Speed'];
+    // --- Ottieni dati dal miglior dinosauro (usando l'indice corretto) ---
+    const bestIndex = world.get_best_index();
+    // Verifica se l'indice è valido prima di procedere
+    if (typeof bestIndex !== 'number' || bestIndex < 0 || bestIndex >= world.get_population_size()) {
+        console.warn("Invalid bestIndex received:", bestIndex);
+        // Potresti disegnare un messaggio di errore o semplicemente non disegnare la rete
+        nnCtx.fillStyle = 'red';
+        nnCtx.font = '12px monospace';
+        nnCtx.fillText("Waiting for best dino data...", 10, 20);
+        return;
+    }
+
     const weights = world.get_best_input_weights();
     const outputWeights = world.get_best_output_weights();
     const outputBias = world.get_best_bias();
+    const hiddenBiases = world.get_best_hidden_biases();
 
     const hiddenSize = outputWeights.length;
-    const inputSize = inputLabels.length;
+    // Definisci le etichette e la dimensione input qui, basandoti sugli input REALI usati in Rust
+    const inputLabels = ['Dist.', 'Speed Mult.', 'Score Norm.']; // Etichette corrispondenti agli input Rust
+    const inputSize = inputLabels.length; // Dovrebbe essere 3
     const nodeRadius = 18;
 
     const inputPos: { x: number; y: number }[] = [];
     const hiddenPos: { x: number; y: number }[] = [];
 
-    // Calcola input reali del miglior dino
-    const bestX = world.get_best_dino_x();
-    const bestVY = world.get_best_dino_velocity_y();
+    // --- CALCOLO INPUT CORRETTO (come in Rust) ---
+    const bestX = world.get_dino_x(bestIndex);
+    const bestScore = world.get_score_of(bestIndex); // Assicurati di avere questa funzione in Rust
+    const currentSpeedMultiplier = world.get_speed_multiplier();
+
+    // Trova la distanza dall'ostacolo più vicino *davanti* al best dino
     let minDist = Infinity;
+    const OBSTACLE_WIDTH_JS = 5.0; // Assicurati sia uguale a OBSTACLE_WIDTH in Rust
     for (let i = 0; i < world.get_obstacle_count(); i++) {
         const ox = world.get_obstacle_x(i);
-        const dx = ox - bestX;
-        if (dx > 0 && dx < minDist) minDist = dx;
+        // Logica per trovare l'ostacolo rilevante (come in Rust: o.x + OBSTACLE_WIDTH > dino.x)
+        if (ox + OBSTACLE_WIDTH_JS > bestX) {
+            const dx = ox - bestX; // Distanza dal bordo sinistro dell'ostacolo
+            // Troviamo il minimo tra le distanze (anche negative se sovrapposto)
+            if (dx < minDist) {
+                minDist = dx;
+            }
+        }
     }
-    const normDist = minDist === Infinity ? canvas.width : minDist; // Usa una distanza massima se non ci sono ostacoli
-    const normVY = bestVY;
-    const currentSpeedMultiplier = world.get_speed_multiplier(); // Rinomina per chiarezza
-    const input = [normDist / 100, normVY / 10, currentSpeedMultiplier / 5]; // Normalizza gli input (valori esempio!)
 
-    // Posizionamento neuroni
-    function layerPosition(index: number, columnX: number, singleFile = false): [number, number] {
-        const col = singleFile ? 1 : index % 2;
-        const row = singleFile ? index + 0.5 : Math.floor(index / 2);
-        const spacingX = 40;
-        const spacingY = 60;
-        return [columnX + col * spacingX, 50 + row * spacingY];
+    // Se non ci sono ostacoli rilevanti (molto lontano o all'inizio), usa un valore grande.
+    // Potresti voler affinare questo comportamento per matchare Rust perfettamente.
+    const inputDistance = minDist === Infinity ? 1000.0 : minDist;
+
+    // Crea il vettore input ESATTAMENTE come in Rust
+    const input = [
+        inputDistance,                      // 1. Distanza grezza
+        currentSpeedMultiplier,             // 2. Moltiplicatore velocità grezzo
+        (bestScore + 1) / 100.0             // 3. Punteggio normalizzato
+    ];
+    // --- FINE CALCOLO INPUT CORRETTO ---
+
+
+    // --- Posizionamento neuroni (Layout) ---
+    function layerPosition(index: number, columnX: number, count: number): [number, number] {
+        // Centra verticalmente il layer
+        const totalHeight = (count - 1) * 60; // Spaziatura verticale
+        const startY = (nnCanvas.height - totalHeight) / 2;
+        const y = startY + index * 60;
+        return [columnX, y];
     }
 
     // Input neuron positions
     for (let i = 0; i < inputSize; i++) {
-        const [x, y] = layerPosition(i, 50, true);
+        const [x, y] = layerPosition(i, 50, inputSize);
         inputPos.push({ x, y });
     }
     // Hidden neuron positions
     for (let j = 0; j < hiddenSize; j++) {
-        const [x, y] = layerPosition(j, 150, true);
+        const [x, y] = layerPosition(j, 180, hiddenSize); // Spostato un po' a destra
         hiddenPos.push({ x, y });
     }
-    // Output neuron position
-    const ox = 300;
-    const oy = 140;
+    // Output neuron position (centrato verticalmente)
+    const [ox, oy] = layerPosition(0, 310, 1); // Spostato un po' a destra
 
+
+    // --- Disegno Connessioni ---
     // Connessioni input → hidden
     for (let j = 0; j < hiddenSize; j++) {
         for (let i = 0; i < inputSize; i++) {
             const from = inputPos[i];
             const to = hiddenPos[j];
+            // Accedi al peso corretto: weights[indice_neurone_hidden * num_input + indice_input]
             const w = weights[j * inputSize + i];
             drawConnection(from.x, from.y, to.x, to.y, w);
         }
@@ -266,34 +301,48 @@ function drawNeuralNet(time: number) { // Aggiunto parametro time
         drawConnection(from.x, from.y, ox, oy, outputWeights[j]);
     }
 
-    // Calcola attivazioni hidden
+
+    // --- Calcola Attivazioni (Simulazione Forward Pass in TS) ---
     const hiddenActivations: number[] = [];
     for (let j = 0; j < hiddenSize; j++) {
-        const sum = input.reduce((acc, val, i) => acc + val * weights[j * inputSize + i], 0);
-        const activation = 1 / (1 + Math.exp(-sum)); // Sigmoid
+        // Somma pesata degli input
+        let sum = input.reduce((acc, val, i) => acc + val * weights[j * inputSize + i], 0);
+
+        // !!! Applica il bias nascosto se esiste e viene usato in Rust !!!
+        sum += hiddenBiases[j]; // Decommenta se necessario
+
+        // Applica la funzione di attivazione (Sigmoid)
+        const activation = sigmoid(sum);
         hiddenActivations.push(activation);
     }
     // Calcola output
     const dot = hiddenActivations.reduce((sum, h, i) => sum + h * outputWeights[i], 0);
-    const outputSum = dot + outputBias;
-    const outputActivation = sigmoid(outputSum);
+    const outputSum = dot + outputBias; // Applica il bias di output
+    const outputActivation = sigmoid(outputSum); // Applica Sigmoid
 
-    // Disegna input neurons (passando tempo e attivazione)
+
+    // --- Disegna Neuroni ---
+    // Input neurons
     for (let i = 0; i < inputSize; i++) {
         const { x, y } = inputPos[i];
-        // Nota: l'attivazione di un neurone di input è il suo valore stesso
-        drawNeuron(nnCtx, x, y, nodeRadius, inputColor, inputLabels[i], input[i], input[i], time);
+        // L'attivazione visiva di un input è il suo valore stesso (o una sua normalizzazione se preferisci)
+        // Usiamo il valore grezzo per il display, e lo stesso per l'effetto (clampato 0-1)
+        const effectValue = Math.max(0, Math.min(1, input[i])); // Clamp per effetto visivo
+        drawNeuron(nnCtx, x, y, nodeRadius, inputColor, inputLabels[i], input[i], effectValue, time);
     }
-    // Disegna hidden neurons (passando tempo e attivazione)
+    // Hidden neurons
     for (let j = 0; j < hiddenSize; j++) {
         const { x, y } = hiddenPos[j];
+        // L'attivazione è l'output del neurone nascosto
         drawNeuron(nnCtx, x, y, nodeRadius, hiddenColor, '', hiddenActivations[j], hiddenActivations[j], time);
     }
-    // Disegna output neuron (passando tempo e attivazione)
-    const effectActivation = outputActivation > 0.6 ? outputActivation : 0;
+    // Output neuron
+    const effectActivation = outputActivation > 0.6 ? outputActivation : 0; // Effetto condizionale
+    // Passa outputActivation per il display, effectActivation per l'effetto
     drawNeuron(nnCtx, ox, oy, nodeRadius, outputColor, 'Jump', outputActivation, effectActivation, time);
 
-    // Disegna la legenda
+
+    // --- Disegna la Legenda ---
     drawNnLegend(nnCtx, nnCanvas.width - 160, 20); // Posiziona in alto a destra
 }
 

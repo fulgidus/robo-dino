@@ -28,6 +28,7 @@ export class World {
   count_alive(): number;
   get_average_score(): number;
   is_alive(index: number): boolean;
+  get_best_hidden_biases(): Float32Array;
   get_population_size(): number;
   get_dino_x(index: number): number;
   get_dino_y(index: number): number;
@@ -64,6 +65,7 @@ export interface InitOutput {
   readonly world_count_alive: (a: number) => number;
   readonly world_get_average_score: (a: number) => number;
   readonly world_is_alive: (a: number, b: number) => number;
+  readonly world_get_best_hidden_biases: (a: number) => [number, number];
   readonly world_get_population_size: (a: number) => number;
   readonly world_get_dino_x: (a: number, b: number) => number;
   readonly world_get_dino_y: (a: number, b: number) => number;

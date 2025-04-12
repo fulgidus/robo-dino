@@ -268,6 +268,15 @@ export class World {
         return ret !== 0;
     }
     /**
+     * @returns {Float32Array}
+     */
+    get_best_hidden_biases() {
+        const ret = wasm.world_get_best_hidden_biases(this.__wbg_ptr);
+        var v1 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
      * @returns {number}
      */
     get_population_size() {
