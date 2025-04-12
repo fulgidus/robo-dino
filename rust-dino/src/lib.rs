@@ -10,7 +10,8 @@ const OBSTACLE_WIDTH: f32 = 5.0;
 const OBSTACLE_HEIGHT: f32 = 30.0;
 const GRAVITY: f32 = -90.0;
 const MAX_JUMP_FORCE: f32 = 90.0;
-const POPULATION_SIZE: usize = 200;
+const SUBSTEP_FACTOR: u32 = 5; // Esegui fino a 5 sub-step per ogni unità di speed_multiplier > 1
+const MAX_SUBSTEPS: u32 = 500; // Limite massimo per evitare blocchi a velocità estreme
 
 fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
@@ -177,6 +178,7 @@ pub struct World {
     generation: u32,
     fitness_history: Vec<u32>,
     speed_multiplier: f32,
+    population_size: usize,
 }
 
 #[wasm_bindgen]
@@ -204,136 +206,128 @@ impl World {
             generation: 0,
             fitness_history: vec![],
             speed_multiplier: 0.0,
+            population_size: count,
         }
     }
 
     pub fn update(&mut self, dt: f32) {
+        // Calcola il moltiplicatore di velocità basato sul punteggio massimo attuale
         let best_score = self.dinos
             .iter()
             .filter(|d| d.alive)
             .map(|d| d.score)
             .max()
             .unwrap_or(0) as f32;
-        let speed_multiplier = 1.0 + best_score / 10.0;
-        self.speed_multiplier = speed_multiplier;
-        for (i, dino) in self.dinos.iter_mut().enumerate() {
-            if !dino.alive {
-                continue;
-            }
+        self.speed_multiplier = 1.0 + best_score / 10.0; // Aggiorna il moltiplicatore di velocità del mondo
 
-            dino.update(dt);
+        // --- Calcolo Sub-stepping ---
+        let num_sub_steps = if self.speed_multiplier <= 1.0 {
+            1
+        } else {
+            // Scala linearmente con la velocità, ma limita
+            (((self.speed_multiplier - 1.0).ceil() as u32) * SUBSTEP_FACTOR + 1).min(MAX_SUBSTEPS)
+        };
+        let sub_dt = dt / (num_sub_steps as f32); // Delta time per ogni sub-step
 
-            if
-                let Some(obs) = self.obstacles
-                    .iter()
-                    .filter(|o| o.x + OBSTACLE_WIDTH > dino.x)
-                    .min_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
-            {
-                let dist = obs.x - dino.x;
-                let input_distance = dist;
-                let inputs = vec![
-                    input_distance,
-                    speed_multiplier, // ✅ normalizzato: da ~1 a 2 → 0.5 a 1
-                    ((dino.score + 1) as f32) / 100.0
-                ];
-                let output = self.brains[i].predict(&inputs);
+        // --- Loop di Sub-stepping per Fisica e Collisioni ---
+        for _ in 0..num_sub_steps {
+            // --- A. Aggiorna Posizione Ostacoli (con sub_dt) ---
+            let max_x_before_substep_update = self.obstacles // Serve per il reset *all'interno* del substep
+                .iter()
+                .map(|o| o.x)
+                .fold(f32::NEG_INFINITY, f32::max);
 
-                /*                 #[cfg(target_arch = "wasm32")]
-                web_sys::console::log_1(&format!("🦀: Dino vel y {}", dino.velocity_y).into());
- */
-                if dino.on_ground && output > 0.6 {
-                    dino.velocity_y = MAX_JUMP_FORCE;
-                    dino.on_ground = false;
+            let mut score_increment_this_substep = 0; // Contatore per il punteggio
+            for obs in &mut self.obstacles {
+                // Muovi l'ostacolo usando sub_dt
+                obs.x -= obs.base_speed * self.speed_multiplier * sub_dt; // Usa sub_dt!
+
+                // Se l'ostacolo è uscito a sinistra *durante questo sub-step*
+                if obs.x + OBSTACLE_WIDTH < 0.0 {
+                    // Riposiziona l'ostacolo a destra
+                    let mut rng = SmallRng::seed_from_u64(
+                        (self.generation as u64) + (obs.x as u64)
+                    );
+                    obs.x = max_x_before_substep_update + 300.0 + rng.random_range(0.0..200.0);
+                    // Segna che il punteggio deve aumentare
+                    score_increment_this_substep += 1;
                 }
             }
 
-            // --- Add Debug Prints for Collision ---
-            let dino_x = dino.x;
-            let dino_y = dino.y;
-            println!(
-                "[Test Debug] Update for Dino {}: Pos=({:.2}, {:.2}), Alive={}",
-                i,
-                dino_x,
-                dino_y,
-                dino.alive
-            ); // Print dino state before checking obstacles
-
-            for obs in &self.obstacles {
-                let obs_x = obs.x;
-                let obs_y_for_check = GROUND_Y; // Using the value passed to is_collision_with
-
-                // Print coordinates just before the check
-                println!(
-                    "[Test Debug] Dino {} vs Obs: Dino=({:.2}, {:.2}), Obs=({:.2}, {:.2})",
-                    i,
-                    dino_x,
-                    dino_y,
-                    obs_x,
-                    obs_y_for_check
-                );
-
-                let collision_result = Self::is_collision_with(
-                    dino_x,
-                    dino_y,
-                    obs_x,
-                    obs_y_for_check
-                );
-
-                // Print the result of the collision check
-                println!("[Test Debug] Collision Result: {}", collision_result);
-
-                if collision_result {
-                    println!("[Test Debug] Collision DETECTED for Dino {}!", i); // Explicitly log detection
-                    dino.alive = false;
-                    /*#[cfg(target_arch = "wasm32")]
-                    web_sys::console::log_1(&format!("🦀: Dino {} morto", i).into());*/
-                    self.brains[i].fitness = dino.time_alive;
-                    break; // Exit obstacle loop for this dino
+            // --- B. Aggiorna Fisica Dinosauri, Salto e Collisioni ---
+            for i in 0..self.dinos.len() {
+                if !self.dinos[i].alive {
+                    continue;
                 }
-            }
-            // Print dino state *after* checking all obstacles for it
-            println!("[Test Debug] After Obstacle Check for Dino {}: Alive={}", i, dino.alive);
-        }
-        /* let alive_count = self.dinos
-            .iter()
-            .filter(|d| d.alive)
-            .count(); */
-        /* #[cfg(target_arch = "wasm32")]
-        web_sys::console::log_1(&format!("🦀: {} dinos still alive", alive_count).into()); */
+
+                // Aggiorna fisica dino
+                self.dinos[i].update(sub_dt);
+
+                // Logica Salto (come prima)
+                if
+                    let Some(obs) = self.obstacles
+                        .iter()
+                        .filter(|o| o.x + OBSTACLE_WIDTH > self.dinos[i].x)
+                        .min_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
+                {
+                    let dist = obs.x - self.dinos[i].x;
+                    let inputs = vec![
+                        dist,
+                        self.speed_multiplier,
+                        ((self.dinos[i].score + 1) as f32) / 100.0
+                    ];
+                    let output = self.brains[i].predict(&inputs);
+                    if self.dinos[i].on_ground && output > 0.6 {
+                        self.dinos[i].velocity_y = MAX_JUMP_FORCE;
+                        self.dinos[i].on_ground = false;
+
+                        // Applica IMMEDIATAMENTE il movimento verticale iniziale del salto
+                        // Questo dà al dino l'impulso verso l'alto *prima* del controllo collisioni
+                        // La gravità verrà applicata a questa nuova velocità nel prossimo update()
+                        self.dinos[i].y += self.dinos[i].velocity_y * sub_dt;
+                    }
+                }
+
+                // Controlla Collisioni con Ostacoli (usando le posizioni aggiornate nel sub-step)
+                let dino_x = self.dinos[i].x;
+                let dino_y = self.dinos[i].y;
+                for obs in &self.obstacles {
+                    // Ora obs.x è aggiornato per questo sub-step
+                    if Self::is_collision_with(dino_x, dino_y, obs.x, GROUND_Y) {
+                        self.dinos[i].alive = false;
+                        self.brains[i].fitness = self.dinos[i].time_alive;
+                        break;
+                    }
+                }
+
+                // Incrementa punteggio se necessario (solo per dinosauri ancora vivi dopo collision check)
+                if self.dinos[i].alive && score_increment_this_substep > 0 {
+                    self.dinos[i].score += score_increment_this_substep;
+                }
+            } // Fine ciclo sui dinosauri per il sub-step
+        } // Fine loop di sub-stepping
+
+        // --- Logica da Eseguire UNA VOLTA per Frame (fuori dal sub-stepping) ---
+
+        // 1. Aggiorna best_index (basato sullo score dei vivi)
         let best_alive_index = self.dinos
             .iter()
             .enumerate()
-            .filter(|(_, d)| d.alive) // Considera solo i dinosauri vivi
-            .max_by_key(|(_, d)| d.score) // Trova quello con il punteggio massimo
-            .map(|(i, _)| i); // Estrai l'indice
+            .filter(|(_, d)| d.alive)
+            .max_by_key(|(_, d)| d.score)
+            .map(|(i, _)| i);
         self.best_index = best_alive_index.unwrap_or(0);
 
-        let max_x = self.obstacles
-            .iter()
-            .map(|o| o.x)
-            .fold(f32::NEG_INFINITY, f32::max);
-        for obs in &mut self.obstacles {
-            obs.x -= obs.base_speed * speed_multiplier * dt;
-            if obs.x + OBSTACLE_WIDTH < 0.0 {
-                let mut rng = SmallRng::seed_from_u64((self.generation as u64) + (obs.x as u64));
-
-                obs.x = max_x + 300.0 + rng.random_range(0.0..200.0);
-                for dino in self.dinos.iter_mut() {
-                    if dino.alive {
-                        dino.score += 1;
-                    }
-                }
-            }
-        }
-
+        // 2. Controlla se tutti i dinosauri sono morti per evolvere
         if self.dinos.iter().all(|d| !d.alive) {
+            // Ricalcola best_index basato sulla FITNESS
             self.best_index = self.brains
                 .iter()
                 .enumerate()
-                .max_by_key(|(_, b)| b.fitness) // Usa la fitness qui!
+                .max_by_key(|(_, b)| b.fitness)
                 .map(|(i, _)| i)
-                .unwrap_or(0); // Fallback se tutti hanno fitness 0 (improbabile)
-
+                .unwrap_or(0);
+            // Esegui l'evoluzione
             self.evolve();
         }
     }
@@ -363,7 +357,7 @@ impl World {
         let mut new_brains = vec![best.clone()];
 
         // Mutazioni del best
-        for i in 1..POPULATION_SIZE {
+        for i in 1..self.population_size {
             // Use the original best (with high fitness) as the base for mutation,
             // or the reset one? Let's use the original best's weights/biases
             // but the mutate function will reset fitness anyway.
@@ -373,7 +367,7 @@ impl World {
         }
 
         self.brains = new_brains;
-        self.dinos = (0..POPULATION_SIZE).map(|_| Dino::new(50.0, GROUND_Y)).collect();
+        self.dinos = (0..self.population_size).map(|_| Dino::new(50.0, GROUND_Y)).collect();
         let mut rng = SmallRng::seed_from_u64(self.generation as u64);
         self.obstacles = vec![
             Obstacle {
@@ -553,8 +547,8 @@ mod tests {
     #[test]
     fn test_best_index_updates_after_update() {
         // 1. Arrange: Create a world
-        let mut world = World::new(POPULATION_SIZE);
-        assert!(POPULATION_SIZE >= 3, "Test requires at least 3 dinos");
+        let mut world = World::new(200);
+        assert!(200 >= 3, "Test requires at least 3 dinos");
 
         // 2. Act: Manually set fitness and mark all dinos dead to trigger
         //         the pre-evolve best_index calculation based on fitness.
@@ -599,7 +593,7 @@ mod tests {
         }
 
         // Mark ALL OTHER dinos dead as well to ensure the pre-evolve condition is met
-        for i in 3..POPULATION_SIZE {
+        for i in 3..200 {
             if let Some(dino) = world.dinos.get_mut(i) {
                 dino.alive = false;
             } else {
@@ -630,8 +624,8 @@ mod tests {
     #[test]
     fn test_best_index_updates_when_best_dino_dies() {
         // 1. Arrange: Create a world and establish an initial best dino based on SCORE
-        let mut world = World::new(POPULATION_SIZE);
-        assert!(POPULATION_SIZE >= 3, "Test requires at least 3 dinos for clarity");
+        let mut world = World::new(200);
+        assert!(200 >= 3, "Test requires at least 3 dinos for clarity");
 
         let first_best_idx = 1;
         let second_best_idx = 2;
@@ -701,8 +695,8 @@ mod tests {
     // Rename to reflect it uses score-based best_index
     fn test_get_best_dino_velocity_y_matches_best_score_dino() {
         // 1. Arrange: Create a world and set up scores/velocities
-        let mut world = World::new(POPULATION_SIZE);
-        assert!(POPULATION_SIZE >= 2, "Test requires at least 2 dinos");
+        let mut world = World::new(200);
+        assert!(200 >= 2, "Test requires at least 2 dinos");
 
         let best_score_idx = 1; // Index of the dino we'll give the highest score
         let other_idx = 0;
@@ -857,8 +851,8 @@ mod tests {
 
     #[test]
     fn test_world_evolve() {
-        let mut world = World::new(POPULATION_SIZE);
-        assert!(POPULATION_SIZE >= 2, "Evolve test requires at least 2 population size");
+        let mut world = World::new(200);
+        assert!(200 >= 2, "Evolve test requires at least 2 population size");
 
         // Imposta fitness diverse per identificare il migliore
         let best_idx = 1;
@@ -915,7 +909,7 @@ mod tests {
         );
 
         // Verifica cervelli (il primo è clone, gli altri mutati)
-        assert_eq!(world.brains.len(), POPULATION_SIZE, "Brain count should remain constant");
+        assert_eq!(world.brains.len(), 200, "Brain count should remain constant");
         // Nota: Confrontare float per uguaglianza esatta è rischioso.
         // Verifichiamo che il primo cervello abbia la fitness resettata (come tutti i nuovi)
         assert_eq!(world.brains[0].fitness, 0, "Fitness of the cloned best brain should be reset");
@@ -973,7 +967,7 @@ mod tests {
 
     #[test]
     fn test_obstacle_movement_and_reset_and_score() {
-        let mut world = World::new(POPULATION_SIZE);
+        let mut world = World::new(200);
         let dt = 0.1;
         let initial_speed_multiplier = 1.0; // Assume base speed for simplicity
         world.speed_multiplier = initial_speed_multiplier; // Set manually for test predictability
@@ -1075,8 +1069,8 @@ mod tests {
 
     #[test]
     fn test_world_setters() {
-        let mut world = World::new(POPULATION_SIZE);
-        assert!(POPULATION_SIZE > 0, "Test requires population size > 0");
+        let mut world = World::new(200);
+        assert!(200 > 0, "Test requires population size > 0");
 
         // Define test data
         let test_weights: Vec<f32> = vec![0.1, -0.2, 0.3]; // Assuming hidden size is 3
@@ -1105,7 +1099,7 @@ mod tests {
     #[test]
     fn test_nn_input_calculation_logic() {
         // Arrange: Set up world state manually to test input calculation
-        let mut world = World::new(POPULATION_SIZE);
+        let mut world = World::new(200);
         let dino_index = 0;
         let dino_x_pos = 50.0;
         let dino_score_val = 15;
@@ -1232,7 +1226,7 @@ mod tests {
     #[test]
     fn test_update_multiple_close_obstacles() {
         // Arrange
-        let mut world = World::new(POPULATION_SIZE);
+        let mut world = World::new(200);
         let dt = 0.0167; // Simulate one frame ~60fps
         let dino_index = 0;
         let other_alive_dino_index = 1; // Keep this one alive
@@ -1248,7 +1242,7 @@ mod tests {
         }
 
         // --- Keep dino 1 alive but out of the way ---
-        if POPULATION_SIZE > 1 {
+        if 200 > 1 {
             // Ensure we have a dino 1
             if let Some(dino) = world.dinos.get_mut(other_alive_dino_index) {
                 dino.x = -1000.0; // Far away, won't collide
@@ -1259,14 +1253,14 @@ mod tests {
                 panic!("Dino 1 setup failed");
             }
             // Mark all *other* dinos (except 0 and 1) as dead
-            for i in 2..POPULATION_SIZE {
+            for i in 2..200 {
                 if let Some(dino) = world.dinos.get_mut(i) {
                     dino.alive = false;
                 }
             }
         } else {
             // If population is only 1, mark no others dead.
-            // This case shouldn't happen based on POPULATION_SIZE = 200
+            // This case shouldn't happen based on 200 = 200
             // but good to consider edge cases.
         }
 
@@ -1316,7 +1310,7 @@ mod tests {
     #[test]
     fn test_dino_jump_over_obstacle_space() {
         // Arrange
-        let mut world = World::new(POPULATION_SIZE);
+        let mut world = World::new(200);
         let dt = 0.05; // A slightly larger time step to see more movement
         let dino_index = 0;
         let other_alive_dino_index = 1; // Keep this one alive to prevent evolve
@@ -1333,14 +1327,14 @@ mod tests {
         }
 
         // Keep dino 1 alive but out of the way
-        if POPULATION_SIZE > 1 {
+        if 200 > 1 {
             if let Some(dino) = world.dinos.get_mut(other_alive_dino_index) {
                 dino.x = -1000.0;
                 dino.alive = true;
             } else {
                 panic!("Dino 1 setup failed");
             }
-            for i in 2..POPULATION_SIZE {
+            for i in 2..200 {
                 // Mark others dead
                 if let Some(dino) = world.dinos.get_mut(i) {
                     dino.alive = false;
@@ -1394,7 +1388,7 @@ mod tests {
         );
 
         // Check that the other dino is still alive (prevented evolve)
-        if POPULATION_SIZE > 1 {
+        if 200 > 1 {
             assert!(world.dinos[other_alive_dino_index].alive, "Dino 1 should still be alive");
         }
     }

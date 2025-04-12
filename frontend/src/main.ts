@@ -5,7 +5,7 @@ let speedMultiplier = 1;
 let agentCount = 200;
 let showAll = true;
 let showOnlyAlive = true;
-
+let highestScoreEver = 0;
 
 const canvas = document.getElementById('main') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -410,6 +410,7 @@ function draw() {
     ctx.font = '14px monospace';
     ctx.fillText(`Score: ${score}`, 10, 20);
     ctx.fillText(`Alive: ${alive}`, 100, 20);
+    ctx.fillText(`Highest Score: ${highestScoreEver}`, 200, 20); // Aggiunto qui
     ctx.fillText(`Generation: ${generation}`, 350, 20);
 }
 
@@ -435,12 +436,11 @@ function loop(time: number, buff: any) {
         world.update((1 / 60) * speedMultiplier);
     }
 
-    /*     const ptr = world.export_velocity_ptr();
-        const velocity = new Float32Array(buff, ptr, 1)[0];
-    
-        const velocityDataView = new DataView(buff).getInt32(ptr, true);
-        console.log('velocityDataView', velocity, ptr, velocityDataView, buff)
-     */
+    const currentBestScore = world.get_best_score();
+    if (currentBestScore > highestScoreEver) {
+        highestScoreEver = currentBestScore;
+    }
+
     draw();
     drawWeightHeatmap();
     drawFitnessGraph(fitnessHistory);
