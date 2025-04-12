@@ -238,9 +238,9 @@ impl World {
                 ];
                 let output = self.brains[i].predict(&inputs);
 
-                #[cfg(target_arch = "wasm32")]
+                /*                 #[cfg(target_arch = "wasm32")]
                 web_sys::console::log_1(&format!("🦀: Dino vel y {}", dino.velocity_y).into());
-
+ */
                 if dino.on_ground && output > 0.6 {
                     dino.velocity_y = MAX_JUMP_FORCE;
                     dino.on_ground = false;
