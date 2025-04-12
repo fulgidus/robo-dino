@@ -367,7 +367,6 @@ function draw() {
         if (!showAll) {
             // Se mostriamo solo il migliore:
             // Salta se non abbiamo un indice valido O se l'indice corrente non è il migliore.
-            alive && console.log('hasValidBestIndex', hasValidBestIndex, 'i', i, 'bestIndex', bestIndex, 'alive', alive, 'showAll', showAll);
             if (!hasValidBestIndex || i !== bestIndex) {
                 skip = true;
             }

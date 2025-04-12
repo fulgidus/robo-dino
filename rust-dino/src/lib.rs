@@ -244,28 +244,6 @@ impl World {
                 if dino.on_ground && output > 0.6 {
                     dino.velocity_y = MAX_JUMP_FORCE;
                     dino.on_ground = false;
-                    #[cfg(target_arch = "wasm32")]
-                    web_sys::console::log_1(
-                        &format!(
-                            "🦀: Dino {} JUMPING! (OnGround={}, Output={:.6})",
-                            i,
-                            dino.on_ground,
-                            output
-                        ).into()
-                    );
-                } else {
-                    #[cfg(target_arch = "wasm32")]
-                    if dino.on_ground {
-                        // Logga solo se era a terra ma l'output era <= 0.6
-                        web_sys::console::log_1(
-                            &format!(
-                                "🦀: Dino {} NO JUMP (OnGround={}, Output={:.6} <= 0.6)",
-                                i,
-                                dino.on_ground,
-                                output
-                            ).into()
-                        );
-                    }
                 }
             }
 
@@ -307,8 +285,8 @@ impl World {
                 if collision_result {
                     println!("[Test Debug] Collision DETECTED for Dino {}!", i); // Explicitly log detection
                     dino.alive = false;
-                    #[cfg(target_arch = "wasm32")]
-                    web_sys::console::log_1(&format!("🦀: Dino {} morto", i).into());
+                    /*#[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(&format!("🦀: Dino {} morto", i).into());*/
                     self.brains[i].fitness = dino.time_alive;
                     break; // Exit obstacle loop for this dino
                 }
