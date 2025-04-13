@@ -256,7 +256,7 @@ impl World {
                     // Scala la distanza base di spawn con il moltiplicatore di velocità
                     let base_spawn_distance = 300.0 * self.speed_multiplier;
                     // Mantieni la variazione casuale
-                    let random_offset = rng.random_range(0.0..200.0);
+                    let random_offset = rng.random_range(0.0..600.0);
 
                     obs.x = max_x_before_substep_update + base_spawn_distance + random_offset;
                     // --- FINE NUOVA LOGICA ---
