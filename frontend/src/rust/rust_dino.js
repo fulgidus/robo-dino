@@ -342,6 +342,9 @@ async function __wbg_load(module, imports) {
 function __wbg_get_imports() {
     const imports = {};
     imports.wbg = {};
+    imports.wbg.__wbg_error_524f506f44df1645 = function(arg0) {
+        console.error(arg0);
+    };
     imports.wbg.__wbg_log_c222819a41e063d3 = function(arg0) {
         console.log(arg0);
     };

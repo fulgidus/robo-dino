@@ -12,6 +12,7 @@ const GRAVITY: f32 = -90.0;
 const MAX_JUMP_FORCE: f32 = 90.0;
 const SUBSTEP_FACTOR: u32 = 5; // Esegui fino a 5 sub-step per ogni unità di speed_multiplier > 1
 const MAX_SUBSTEPS: u32 = 500; // Limite massimo per evitare blocchi a velocità estreme
+const DISTANCE_NOISE_FACTOR: f32 = 0.05; // Esempio: errore massimo del 5% della distanza
 
 fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
@@ -218,7 +219,9 @@ impl World {
             .map(|d| d.score)
             .max()
             .unwrap_or(0) as f32;
-        self.speed_multiplier = 1.0 + best_score / 10.0; // Aggiorna il moltiplicatore di velocità del mondo
+        // Applica il limite massimo al moltiplicatore di velocità se necessario
+        // self.speed_multiplier = (1.0 + best_score / 10.0).min(30.0); // Esempio con limite a 30x
+        self.speed_multiplier = 1.0 + best_score / 10.0; // Versione senza limite
 
         // --- Calcolo Sub-stepping ---
         let num_sub_steps = if self.speed_multiplier <= 1.0 {
@@ -246,9 +249,18 @@ impl World {
                 if obs.x + OBSTACLE_WIDTH < 0.0 {
                     // Riposiziona l'ostacolo a destra
                     let mut rng = SmallRng::seed_from_u64(
-                        (self.generation as u64) + (obs.x as u64)
+                        (self.generation as u64) + (obs.x as u64) // Usa un seed prevedibile
                     );
-                    obs.x = max_x_before_substep_update + 300.0 + rng.random_range(0.0..200.0);
+
+                    // --- NUOVA LOGICA CON DISTANZA SCALATA ---
+                    // Scala la distanza base di spawn con il moltiplicatore di velocità
+                    let base_spawn_distance = 300.0 * self.speed_multiplier;
+                    // Mantieni la variazione casuale
+                    let random_offset = rng.random_range(0.0..200.0);
+
+                    obs.x = max_x_before_substep_update + base_spawn_distance + random_offset;
+                    // --- FINE NUOVA LOGICA ---
+
                     // Segna che il punteggio deve aumentare
                     score_increment_this_substep += 1;
                 }
@@ -263,30 +275,73 @@ impl World {
                 // Aggiorna fisica dino
                 self.dinos[i].update(sub_dt);
 
-                // Logica Salto (come prima)
+                // --- Logica Salto con Distanza Rumorosa ---
+                // Crea un RNG per questo dino/substep (usa un seed prevedibile)
+                let mut noise_rng = SmallRng::seed_from_u64(
+                    (self.generation as u64) * 10000 + (i as u64) // Seed unico per dino/gen
+                );
+
+                let noisy_dist_input: f32; // La distanza con errore da passare alla rete
+
                 if
                     let Some(obs) = self.obstacles
                         .iter()
-                        .filter(|o| o.x + OBSTACLE_WIDTH > self.dinos[i].x)
+                        // Filtra ostacoli davanti e nel campo visivo
+                        .filter(|o| {
+                            let in_front = o.x + OBSTACLE_WIDTH > self.dinos[i].x;
+                            // Considera un campo visivo (VISION_RANGE non definito nel contesto, assumiamo 300.0)
+                            let vision_range = 300.0;
+                            let in_range = o.x < self.dinos[i].x + vision_range;
+                            in_front && in_range
+                        })
                         .min_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
                 {
-                    let dist = obs.x - self.dinos[i].x;
-                    let inputs = vec![
-                        dist,
-                        self.speed_multiplier,
-                        ((self.dinos[i].score + 1) as f32) / 100.0
-                    ];
-                    let output = self.brains[i].predict(&inputs);
-                    if self.dinos[i].on_ground && output > 0.6 {
-                        self.dinos[i].velocity_y = MAX_JUMP_FORCE;
-                        self.dinos[i].on_ground = false;
+                    // Ostacolo trovato nel range
+                    let actual_dist = obs.x - self.dinos[i].x;
 
-                        // Applica IMMEDIATAMENTE il movimento verticale iniziale del salto
-                        // Questo dà al dino l'impulso verso l'alto *prima* del controllo collisioni
-                        // La gravità verrà applicata a questa nuova velocità nel prossimo update()
-                        self.dinos[i].y += self.dinos[i].velocity_y * sub_dt;
-                    }
+                    // --- Calcola e applica rumore proporzionale (CON CHECK) ---
+                    let noise = if actual_dist <= f32::EPSILON {
+                        // Check if distance is effectively zero
+                        0.0 // No noise if distance is zero
+                    } else {
+                        let max_noise = actual_dist * DISTANCE_NOISE_FACTOR;
+                        // Ensure max_noise is positive before creating range
+                        if max_noise > 0.0 {
+                            noise_rng.random_range(-max_noise..max_noise)
+                        } else {
+                            0.0 // No noise if max_noise is zero or negative
+                        }
+                    };
+                    noisy_dist_input = (actual_dist + noise).max(0.0);
+                    // --- Fine calcolo rumore ---
+                } else {
+                    // Nessun ostacolo nel range visivo
+                    // Applica rumore anche alla percezione della "distanza massima"
+                    let vision_range = 300.0; // Assumiamo 300.0
+                    let max_noise_at_vision_range = vision_range * DISTANCE_NOISE_FACTOR;
+                    let noise = noise_rng.random_range(
+                        -max_noise_at_vision_range..max_noise_at_vision_range
+                    );
+                    noisy_dist_input = (vision_range + noise).max(0.0);
                 }
+
+                // Usa la distanza rumorosa come input per la rete
+                let inputs = vec![
+                    noisy_dist_input, // <-- Usa la distanza con errore
+                    self.speed_multiplier,
+                    ((self.dinos[i].score + 1) as f32) / 100.0
+                ];
+                let output = self.brains[i].predict(&inputs);
+
+                // Logica di salto (usa l'output basato sull'input rumoroso)
+                if self.dinos[i].on_ground && output > 0.6 {
+                    self.dinos[i].velocity_y = MAX_JUMP_FORCE;
+                    self.dinos[i].on_ground = false;
+
+                    // Applica IMMEDIATAMENTE il movimento verticale iniziale del salto
+                    self.dinos[i].y += self.dinos[i].velocity_y * sub_dt;
+                }
+                // --- Fine Logica Salto ---
 
                 // Controlla Collisioni con Ostacoli (usando le posizioni aggiornate nel sub-step)
                 let dino_x = self.dinos[i].x;
@@ -335,40 +390,74 @@ impl World {
     fn evolve(&mut self) {
         #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&"🦀: 🌱 Evolving!".into());
-        let mut best = match self.brains.get(self.best_index) {
+
+        // --- Handle Empty Population Case ---
+        if self.population_size == 0 {
+            #[cfg(target_arch = "wasm32")]
+            console::warn_1(
+                &"WARN: Attempted to evolve with population size 0. Skipping evolve.".into()
+            );
+            // Optionally reset generation or other state if needed, but returning is safest.
+            return;
+        }
+
+        // --- Get the Best Brain Safely ---
+        // Uses the best_index calculated based on FITNESS just before calling evolve
+        let best_brain_for_cloning = match self.brains.get(self.best_index) {
             Some(b) => b.clone(),
             None => {
-                // Fallback se best_index non è valido (non dovrebbe succedere)
-                console::warn_1(&"WARN: best_index invalid during evolve, using index 0".into());
-                // Potresti scegliere un default migliore, o ricalcolare qui
+                // Fallback if best_index is invalid. This shouldn't happen if pop_size > 0
+                // and the pre-evolve best_index calculation is correct, but we add safety.
+                #[cfg(target_arch = "wasm32")]
+                console::warn_1(
+                    &format!(
+                        "WARN: best_index {} invalid during evolve (pop_size {}), using index 0 as fallback.",
+                        self.best_index,
+                        self.population_size
+                    ).into()
+                );
+
+                // Attempt to get brain 0, or create a default if even that fails.
                 self.brains
                     .get(0)
                     .cloned()
-                    .unwrap_or_else(|| NeuralNet::new(3, 0)) // Assicurati che ci sia sempre un cervello
+                    .unwrap_or_else(|| {
+                        #[cfg(target_arch = "wasm32")]
+                        console::error_1(
+                            &"ERROR: Failed to get even brain 0 in evolve fallback. Creating default.".into()
+                        );
+                        // Use generation for a somewhat unique seed if creating default
+                        NeuralNet::new(3, self.generation as u64)
+                    })
             }
         };
-        self.fitness_history.push(best.fitness);
 
-        // --- Reset the fitness of the cloned best brain ---
-        best.fitness = 0;
+        // Record the fitness of the brain selected for cloning
+        self.fitness_history.push(best_brain_for_cloning.fitness);
 
+        // --- Create the Next Generation ---
         let seed_base = (self.generation as u64) * 1000;
-        // --- Add the reset best brain as the first element ---
-        let mut new_brains = vec![best.clone()];
+        let mut new_brains = Vec::with_capacity(self.population_size);
 
-        // Mutazioni del best
+        // 1. Add the elite clone (with fitness reset)
+        let mut elite_clone = best_brain_for_cloning.clone();
+        elite_clone.fitness = 0; // Fitness must be reset for the new generation
+        new_brains.push(elite_clone);
+
+        // 2. Add mutated versions based on the best brain's weights/biases
+        //    Use the already safely cloned `best_brain_for_cloning` as the base for mutation.
         for i in 1..self.population_size {
-            // Use the original best (with high fitness) as the base for mutation,
-            // or the reset one? Let's use the original best's weights/biases
-            // but the mutate function will reset fitness anyway.
-            // Re-fetch the original best for mutation base if needed, though cloning is fine.
-            let original_best_for_mutation = self.brains.get(self.best_index).unwrap(); // Assuming best_index is valid
-            new_brains.push(original_best_for_mutation.mutate(0.4, seed_base + (i as u64)));
+            // The mutate function already resets fitness to 0
+            new_brains.push(best_brain_for_cloning.mutate(0.4, seed_base + (i as u64)));
         }
 
+        // --- Replace Old Generation ---
         self.brains = new_brains;
         self.dinos = (0..self.population_size).map(|_| Dino::new(50.0, GROUND_Y)).collect();
-        let mut rng = SmallRng::seed_from_u64(self.generation as u64);
+
+        // --- Reset Obstacles ---
+        // Use the *new* generation number for a different obstacle layout
+        let mut rng = SmallRng::seed_from_u64((self.generation + 1) as u64);
         self.obstacles = vec![
             Obstacle {
                 x: 200.0 + rng.random_range(-100.0..100.0),
@@ -379,6 +468,8 @@ impl World {
                 base_speed: 50.0,
             }
         ];
+
+        // --- Increment Generation ---
         self.generation += 1;
     }
 
@@ -392,19 +483,6 @@ impl World {
 
     #[wasm_bindgen]
     pub fn get_best_dino_velocity_y(&self) -> f32 {
-        /* let best_index = self.brains
-            .iter()
-            .enumerate()
-            .max_by_key(|(_, b)| b.fitness)
-            .map(|(i, _)| i)
-            .unwrap_or(0);
-        self.dinos[best_index].velocity_y */
-        /* self.dinos
-            .iter()
-            .filter(|d| d.alive) // Only consider living dinos
-            .max_by_key(|d| d.time_alive) // Find the one with the max time_alive
-            .map(|d| d.velocity_y) // Get its velocity
-            .unwrap_or(0.0) // Default if no dinos are alive */
         self.dinos.get(self.best_index).map_or(0.0, |d| d.velocity_y)
     }
 
